@@ -5,7 +5,10 @@ import numpy as np
 import requests
 from io import BytesIO
 
-# === Cargar datos desde Google Drive usando el ID del archivo guardado en secrets ===
+# ✅ DEBE IR COMO PRIMERA INSTRUCCIÓN
+st.set_page_config(page_title="Dashboard Estudiantil", layout="wide")
+
+# === Cargar datos desde Google Drive ===
 @st.cache_data
 def load_data_from_gdrive(file_id: str) -> pd.DataFrame:
     url = f"https://drive.google.com/uc?id={file_id}&export=download"
@@ -16,11 +19,10 @@ def load_data_from_gdrive(file_id: str) -> pd.DataFrame:
         st.error(f"Error al descargar archivo: {response.status_code}")
         return pd.DataFrame()
 
-# === Leer el FILE_ID desde los Secrets de Streamlit ===
 FILE_ID = st.secrets["FILE_ID"]
 df = load_data_from_gdrive(FILE_ID)
 
-# === Columnas y mapeo de notas ===
+# === Columnas y mapeo ===
 categoricas = [
     "1st Fall Enrollment", "Español Básico Nota 1", "Español Básico Nota 2",
     "Inglés Básico Nota 1", "Inglés Básico Nota 2",
@@ -34,12 +36,9 @@ notas_letra = [
 ]
 
 nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
-df[notas_letra] = df[notas_letra].applymap(
-    lambda x: nota_map.get(str(x).strip().upper(), np.nan)
-)
+df[notas_letra] = df[notas_letra].apply(lambda col: col.map(lambda x: nota_map.get(str(x).strip().upper(), np.nan)))
 
-# === Configuración de página ===
-st.set_page_config(page_title="Dashboard Estudiantil", layout="wide")
+# === Encabezado ===
 st.title("📊 Dashboard Estudiantil")
 
 # === Sidebar ===
@@ -59,7 +58,7 @@ col2.metric("Promedio General", f"{df['Índice General'].mean():.2f}")
 col3.metric("Promedio Científico", f"{df['Índice Científico'].mean():.2f}")
 col4.metric("Promedio PCAT", f"{df['PCAT'].mean():.2f}")
 
-# === Gráfico: Histograma continuo filtrado ===
+# === Gráficos ===
 st.subheader("📈 Distribución de variable continua (filtrada)")
 fig1 = go.Figure()
 fig1.add_trace(go.Histogram(
@@ -70,7 +69,6 @@ fig1.add_trace(go.Histogram(
 fig1.update_layout(title=f"Distribución de {col_cont}", xaxis_title=col_cont, yaxis_title="Frecuencia")
 st.plotly_chart(fig1, use_container_width=True)
 
-# === Gráfico: Categoría total ===
 st.subheader("📊 Distribución total de la categoría")
 valores = df[col_cat].apply(lambda x: str(x).strip()).value_counts().sort_index()
 fig2 = go.Figure()
@@ -82,7 +80,6 @@ fig2.add_trace(go.Bar(
 fig2.update_layout(title=f"Distribución de {col_cat}", xaxis_title=col_cat, yaxis_title="Cantidad")
 st.plotly_chart(fig2, use_container_width=True)
 
-# === Matriz de correlación ===
 st.subheader("🔗 Matriz de Correlación (notas vs. métricas)")
 columnas_cor = notas_letra + continuas
 datos_cor = df[columnas_cor].replace({pd.NA: np.nan})
@@ -98,6 +95,5 @@ fig3 = go.Figure(data=go.Heatmap(
 fig3.update_layout(title="Correlación entre notas y métricas")
 st.plotly_chart(fig3, use_container_width=True)
 
-# === Tabla ===
 st.subheader("🧾 Tabla de datos filtrados")
 st.dataframe(df_filtrado)
