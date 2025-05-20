@@ -125,9 +125,9 @@ bars.update_layout(
 )
 
 # === MATRIZ DE CORRELACIÓN ===
-columnas_cor = list(set(notas_letra + continuas))
+columnas_cor = notas_letra + continuas
 datos_cor = corr_df[columnas_cor].replace({pd.NA: np.nan})
-matriz = datos_cor.corr(numeric_only=True)
+matriz = pd.DataFrame(np.corrcoef(datos_cor.T, rowvar=True), index=columnas_cor, columns=columnas_cor)
 heatmap = go.Figure(data=go.Heatmap(
     z=matriz.values,
     x=matriz.columns,
