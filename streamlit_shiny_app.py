@@ -1,4 +1,5 @@
 import streamlit as st
+import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
@@ -41,16 +42,11 @@ df[notas_letra] = df[notas_letra].apply(lambda col: col.map(lambda x: nota_map.g
 # === SIDEBAR ===
 with st.sidebar:
     st.header("🎚️ Filtros")
-    
-    # Filtro categórico
     col_cat = st.selectbox("Filtrar por categoría", categoricas)
     valores_cat = sorted(df[col_cat].dropna().apply(lambda x: str(x).strip()).unique())
     valor_filtro = st.selectbox(f"Valor en '{col_cat}'", valores_cat)
-
-    # Filtro variable continua
     col_cont = st.selectbox("Variable continua a graficar", continuas)
 
-    # Slider para variable continua
     if col_cont:
         min_val = float(df[col_cont].min())
         max_val = float(df[col_cont].max())
@@ -65,52 +61,40 @@ with st.sidebar:
     else:
         selected_range = (None, None)
 
-# === FILTRADO DINÁMICO ===
+# === FILTRADO ===
 df_filtrado = df[
     (df[col_cat].apply(lambda x: str(x).strip()) == valor_filtro) &
     (df[col_cont] >= selected_range[0]) &
     (df[col_cont] <= selected_range[1])
 ]
 
-# === TÍTULO ===
+# === TÍTULO Y MÉTRICAS ===
 st.markdown("## 📊 Dashboard Estudiantil")
 
-# === MÉTRICAS EN TARJETAS ===
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Total registros", f"{len(df):,}")
-col2.metric("Promedio General", f"{df['Índice General'].mean():.2f}")
-col3.metric("Promedio Científico", f"{df['Índice Científico'].mean():.2f}")
-col4.metric("Promedio PCAT", f"{df['PCAT'].mean():.2f}")
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("Total registros", f"{len(df):,}")
+m2.metric("Promedio General", f"{df['Índice General'].mean():.2f}")
+m3.metric("Promedio Científico", f"{df['Índice Científico'].mean():.2f}")
+m4.metric("Promedio PCAT", f"{df['PCAT'].mean():.2f}")
 
-# === GRÁFICO CONTINUO FILTRADO ===
-st.markdown("### 📈 Distribución de variable continua (filtrada)")
-fig1 = go.Figure()
-fig1.add_trace(go.Histogram(
-    x=df_filtrado[col_cont],
-    nbinsx=10,
-    marker_color="#1f77b4"
-))
-fig1.update_layout(title=f"Distribución de {col_cont}", xaxis_title=col_cont, yaxis_title="Frecuencia")
-st.plotly_chart(fig1, use_container_width=True)
+# === GRÁFICOS ===
 
-# === GRÁFICO CATEGÓRICO TOTAL ===
-st.markdown("### 📊 Distribución total de la categoría")
+# Histograma
+hist = go.Figure()
+hist.add_trace(go.Histogram(x=df_filtrado[col_cont], nbinsx=10, marker_color="#1f77b4"))
+hist.update_layout(title=f"Distribución de {col_cont}", xaxis_title=col_cont, yaxis_title="Frecuencia")
+
+# Gráfico de barras
 valores = df[col_cat].apply(lambda x: str(x).strip()).value_counts().sort_index()
-fig2 = go.Figure()
-fig2.add_trace(go.Bar(
-    x=valores.index,
-    y=valores.values,
-    marker_color="#2c3e50"
-))
-fig2.update_layout(title=f"Distribución de {col_cat}", xaxis_title=col_cat, yaxis_title="Cantidad")
-st.plotly_chart(fig2, use_container_width=True)
+bars = go.Figure()
+bars.add_trace(go.Bar(x=valores.index, y=valores.values, marker_color="#2c3e50"))
+bars.update_layout(title=f"Distribución de {col_cat}", xaxis_title=col_cat, yaxis_title="Cantidad")
 
-# === MATRIZ DE CORRELACIÓN ===
-st.markdown("### 🔗 Matriz de Correlación (notas vs. métricas)")
+# Matriz de correlación
 columnas_cor = notas_letra + continuas
 datos_cor = df[columnas_cor].replace({pd.NA: np.nan})
 matriz = datos_cor.corr()
-fig3 = go.Figure(data=go.Heatmap(
+heatmap = go.Figure(data=go.Heatmap(
     z=matriz.values,
     x=matriz.columns,
     y=matriz.index,
@@ -118,8 +102,25 @@ fig3 = go.Figure(data=go.Heatmap(
     zmin=-1,
     zmax=1
 ))
-fig3.update_layout(title="Correlación entre notas y métricas")
-st.plotly_chart(fig3, use_container_width=True)
+heatmap.update_layout(title="Correlación entre notas y métricas")
+
+# Scatter con regresión
+scatter = px.scatter(
+    df_filtrado,
+    x=col_cont,
+    y="Índice General",
+    trendline="ols",
+    title=f"{col_cont} vs Índice General con regresión"
+)
+
+# === VISUALIZACIONES EN GRID ===
+g1, g2 = st.columns(2)
+g1.plotly_chart(hist, use_container_width=True)
+g2.plotly_chart(bars, use_container_width=True)
+
+g3, g4 = st.columns(2)
+g3.plotly_chart(scatter, use_container_width=True)
+g4.plotly_chart(heatmap, use_container_width=True)
 
 # === TABLA FINAL ===
 st.markdown("### 🧾 Tabla de datos filtrados")
