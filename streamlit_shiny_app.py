@@ -1,4 +1,5 @@
 import streamlit as st
+import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
@@ -7,7 +8,6 @@ from io import BytesIO
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 
-# === CONFIGURACIÓN ===
 st.set_page_config(page_title="Dashboard Estudiantil", layout="wide")
 
 @st.cache_data
@@ -24,10 +24,10 @@ FILE_ID = st.secrets["FILE_ID"]
 df = load_data_from_gdrive(FILE_ID)
 
 # === VARIABLES ===
-demograficas_validas = ["Procedencia", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"]
-continuas = ["Índice General", "Índice Científico", "PCAT"]
-categoricas = [col for col in df.columns if col not in demograficas_validas + continuas + ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"]]
-
+demograficas = [
+    "Procedencia", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"
+]
+ocultas_tabla = ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"]
 notas_cursos = [
     "Español Básico Nota 1", "Español Básico Nota 2", "Inglés Básico Nota 1", "Inglés Básico Nota 2",
     "Ciencias Sociales Nota 1", "Ciencias Sociales Nota 2", 
@@ -42,15 +42,17 @@ notas_cursos = [
     "Lab. Física General Nota 1", "Lab. Física General Nota 2",
     "An. y Fisiología Nota 1", "An. y Fisiología Nota 2", "An. y Fisiología Nota 3", "An. y Fisiología Nota 4"
 ]
-
+continuas = ["Índice General", "Índice Científico", "PCAT"]
+categoricas = [col for col in df.columns if col not in continuas + ocultas_tabla + ["Procedencia"]]
 nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
+
 df[notas_cursos] = df[notas_cursos].apply(lambda col: col.map(lambda x: nota_map.get(str(x).strip().upper(), np.nan)))
 
 # === SIDEBAR ===
 with st.sidebar:
     st.header("🎛️ Filtros")
 
-    col_cat = st.selectbox("Filtrar por categoría", categoricas, index=categoricas.index("Ciencias Sociales Nota 1") if "Ciencias Sociales Nota 1" in categoricas else 0)
+    col_cat = st.selectbox("Filtrar por categoría", categoricas, index=categoricas.index("1st Fall Enrollment"))
     valores_cat = sorted(df[col_cat].dropna().astype(str).unique())
     if col_cat == "1st Fall Enrollment":
         valores_cat = ["All Enrollment"] + valores_cat
@@ -62,18 +64,20 @@ with st.sidebar:
     y_options = [col for col in continuas if col != col_x]
     col_y = st.selectbox("Variable continua (eje Y)", y_options, index=0)
 
-    if col_x:
-        min_val = float(df[col_x].min())
-        max_val = float(df[col_x].max())
-        slider_step = 1.0 if col_x == "PCAT" else 0.1
-        selected_range = st.slider(
-            f"Rango de '{col_x}'",
-            min_value=min_val,
-            max_value=max_val,
-            value=(min_val, max_val),
-            step=slider_step,
-            key="slider"
-        )
+    min_val = float(df[col_x].min())
+    max_val = float(df[col_x].max())
+    slider_step = 1.0 if col_x == "PCAT" else 0.1
+    selected_range = st.slider(
+        f"Rango de '{col_x}'",
+        min_value=min_val,
+        max_value=max_val,
+        value=(min_val, max_val),
+        step=slider_step,
+        key="slider"
+    )
+
+    if st.button("🔄 Resetear filtros"):
+        st.experimental_rerun()
 
 # === FILTRADO ===
 df_filtrado = df.copy()
@@ -97,22 +101,18 @@ c2.metric("Promedio General", f"{df_filtrado['Índice General'].mean():.2f}")
 c3.metric("Promedio Científico", f"{df_filtrado['Índice Científico'].mean():.2f}")
 c4.metric("Promedio PCAT", f"{df_filtrado['PCAT'].mean():.2f}")
 
-# === HISTOGRAMA ===
+# === GRÁFICOS ===
 hist = go.Figure()
 hist.add_trace(go.Histogram(x=df_filtrado[col_x], nbinsx=10, marker_color="#1f77b4"))
 hist.update_layout(title=f"Distribución de {col_x}", xaxis_title=col_x, yaxis_title="Frecuencia")
 
-# === BARRAS ===
 valores_barras = df_filtrado[col_cat].dropna().astype(str).value_counts().sort_index()
 bars = go.Figure()
 bars.add_trace(go.Bar(x=valores_barras.index, y=valores_barras.values, marker_color="#2c3e50"))
 bars.update_layout(title=f"Distribución de {col_cat}", xaxis_title=col_cat, yaxis_title="Cantidad", xaxis_type='category')
 
-# === MATRIZ DE CORRELACIÓN ===
 columnas_cor = notas_cursos + continuas
-datos_cor = df_filtrado[columnas_cor]
-matriz = datos_cor.corr()
-
+matriz = df_filtrado[columnas_cor].corr()
 heatmap = go.Figure(data=go.Heatmap(
     z=matriz.values,
     x=matriz.columns,
@@ -131,7 +131,7 @@ heatmap.update_layout(
     margin=dict(t=80, l=200, r=50, b=200)
 )
 
-# === REGRESIÓN LINEAL ===
+# === SCATTER + REGRESIÓN ===
 x_vals = df_filtrado[col_x].dropna().values.reshape(-1, 1)
 y_vals = df_filtrado[col_y].dropna().values.reshape(-1, 1)
 valid_idx = (~np.isnan(x_vals.flatten())) & (~np.isnan(y_vals.flatten()))
@@ -160,6 +160,6 @@ g3, g4 = st.columns(2)
 g3.plotly_chart(scatter, use_container_width=True)
 g4.plotly_chart(heatmap, use_container_width=True)
 
-# === TABLA ===
+# === TABLA (excluyendo columnas ocultas) ===
 st.markdown("### 🧾 Tabla de datos filtrados")
-st.dataframe(df_filtrado)
+st.dataframe(df_filtrado.drop(columns=ocultas_tabla, errors="ignore"))
