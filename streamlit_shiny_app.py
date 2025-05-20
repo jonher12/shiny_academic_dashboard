@@ -24,17 +24,29 @@ FILE_ID = st.secrets["FILE_ID"]
 df = load_data_from_gdrive(FILE_ID)
 
 # === VARIABLES ===
-categoricas = [
-    "1st Fall Enrollment", "Español Básico Nota 1", "Español Básico Nota 2",
-    "Inglés Básico Nota 1", "Inglés Básico Nota 2",
-    "Ciencias Sociales Nota 1", "Ciencias Sociales Nota 2"
-]
-continuas = ["Índice General", "Índice Científico", "PCAT"]
-notas_letra = [
+cursos_requeridos = [
     "Español Básico Nota 1", "Español Básico Nota 2",
     "Inglés Básico Nota 1", "Inglés Básico Nota 2",
-    "Ciencias Sociales Nota 1", "Ciencias Sociales Nota 2"
+    "Ciencias Sociales Nota 1", "Ciencias Sociales Nota 2",
+    "Introducción al Estudio de la Cultura de Occidente Nota 1", "Introducción al Estudio de la Cultura de Occidente Nota 2",
+    "Economía Nota 1", "Economía Nota 2", "Psicología Nota 1", "Idioma (Inglés o Español) Nota 1",
+    "Biología General Nota 1", "Biología General Nota 2", "Biología General Nota 3", "Biología General Nota 4",
+    "Biología General (D)", "Química General Nota 1", "Química General Nota 2", "Química General Nota 3",
+    "Química General Nota 4", "Química General (D)", "Química Orgánica Nota 1", "Química Orgánica Nota 2",
+    "Química Orgánica Nota 3", "Química Orgánica Nota 4", "Química Orgánica (W)", "Química Orgánica (D)", "Química Orgánica (F)",
+    "Matemática - Pre-Cálculo Nota 1", "Matemática - Pre-Cálculo Nota 2", "Matemática - Pre-Cálculo (D)", "Matemática - Pre-Cálculo (F)",
+    "Cálculo I Nota 1", "Cálculo I Nota 2", "Cálculo I (D)", "Cálculo I (F)",
+    "Física General Nota 1", "Física General Nota 2", "Física General Nota 3", "Física General Nota 4",
+    "Física General (D)", "Física General (F)", "Lab. Física General Nota 1", "Lab. Física General Nota 2",
+    "An. y Fisiología Nota 1", "An. y Fisiología Nota 2", "An. y Fisiología Nota 3", "An. y Fisiología Nota 4"
 ]
+
+categoricas = [
+    "1st Fall Enrollment", "Procedencia"
+] + cursos_requeridos
+
+continuas = ["Índice General", "Índice Científico", "PCAT"]
+notas_letra = cursos_requeridos
 nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
 df[notas_letra] = df[notas_letra].apply(lambda col: col.map(lambda x: nota_map.get(str(x).strip().upper(), np.nan)))
 
