@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 import requests
 from io import BytesIO
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
 
 st.set_page_config(page_title="Dashboard Estudiantil", layout="wide")
 
@@ -21,7 +23,6 @@ def load_data_from_gdrive(file_id: str) -> pd.DataFrame:
 FILE_ID = st.secrets["FILE_ID"]
 df = load_data_from_gdrive(FILE_ID)
 
-# Columnas y mapeo
 categoricas = [
     "1st Fall Enrollment", "Español Básico Nota 1", "Español Básico Nota 2",
     "Inglés Básico Nota 1", "Inglés Básico Nota 2",
@@ -36,7 +37,6 @@ notas_letra = [
 nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
 df[notas_letra] = df[notas_letra].apply(lambda col: col.map(lambda x: nota_map.get(str(x).strip().upper(), np.nan)))
 
-# Sidebar
 with st.sidebar:
     st.header("🎚️ Filtros")
     col_cat = st.selectbox("Filtrar por categoría", categoricas)
@@ -61,14 +61,12 @@ with st.sidebar:
     else:
         selected_range = (None, None)
 
-# Filtro principal
 df_filtrado = df[
     (df[col_cat].apply(lambda x: str(x).strip()) == valor_filtro) &
     (df[col_x] >= selected_range[0]) &
     (df[col_x] <= selected_range[1])
 ]
 
-# Título y métricas
 st.markdown("## 📊 Dashboard Estudiantil")
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Total registros", f"{len(df):,}")
@@ -76,18 +74,23 @@ c2.metric("Promedio General", f"{df['Índice General'].mean():.2f}")
 c3.metric("Promedio Científico", f"{df['Índice Científico'].mean():.2f}")
 c4.metric("Promedio PCAT", f"{df['PCAT'].mean():.2f}")
 
-# Histograma
+# === Histogram ===
 hist = go.Figure()
 hist.add_trace(go.Histogram(x=df_filtrado[col_x], nbinsx=10, marker_color="#1f77b4"))
 hist.update_layout(title=f"Distribución de {col_x}", xaxis_title=col_x, yaxis_title="Frecuencia")
 
-# Barras
-valores = df[col_cat].apply(lambda x: str(x).strip()).value_counts().sort_index()
+# === Categorías como texto para eje x ===
+valores = df[col_cat].dropna().apply(lambda x: str(x).strip()).value_counts().sort_index()
 bars = go.Figure()
-bars.add_trace(go.Bar(x=valores.index, y=valores.values, marker_color="#2c3e50"))
-bars.update_layout(title=f"Distribución de {col_cat}", xaxis_title=col_cat, yaxis_title="Cantidad")
+bars.add_trace(go.Bar(x=valores.index.astype(str), y=valores.values, marker_color="#2c3e50"))
+bars.update_layout(
+    title=f"Distribución de {col_cat}",
+    xaxis_title=col_cat,
+    yaxis_title="Cantidad",
+    xaxis_type='category'
+)
 
-# Correlación
+# === Correlación Heatmap ===
 columnas_cor = notas_letra + continuas
 datos_cor = df[columnas_cor].replace({pd.NA: np.nan})
 matriz = datos_cor.corr()
@@ -97,16 +100,44 @@ heatmap = go.Figure(data=go.Heatmap(
 ))
 heatmap.update_layout(title="Correlación entre notas y métricas")
 
-# Scatter con regresión
-scatter = px.scatter(
-    df_filtrado,
-    x=col_x,
-    y=col_y,
-    trendline="ols",
-    title=f"{col_x} vs {col_y} con regresión"
+# === Scatter con regresión y ecuación + R² ===
+x_vals = df_filtrado[col_x].dropna().values.reshape(-1, 1)
+y_vals = df_filtrado[col_y].dropna().values.reshape(-1, 1)
+
+valid_idx = (~np.isnan(x_vals.flatten())) & (~np.isnan(y_vals.flatten()))
+x_clean = x_vals[valid_idx].reshape(-1, 1)
+y_clean = y_vals[valid_idx].reshape(-1, 1)
+
+model = LinearRegression()
+model.fit(x_clean, y_clean)
+y_pred = model.predict(x_clean)
+r2 = r2_score(y_clean, y_pred)
+slope = model.coef_[0][0]
+intercept = model.intercept_[0]
+
+equation = f"y = {slope:.2f}x + {intercept:.2f}<br>R² = {r2:.3f}"
+
+scatter = go.Figure()
+scatter.add_trace(go.Scatter(
+    x=x_clean.flatten(),
+    y=y_clean.flatten(),
+    mode='markers',
+    name='Datos'
+))
+scatter.add_trace(go.Scatter(
+    x=x_clean.flatten(),
+    y=y_pred.flatten(),
+    mode='lines',
+    name='Regresión',
+    line=dict(color='orange')
+))
+scatter.update_layout(
+    title=f"{col_x} vs {col_y} con regresión<br><sub>{equation}</sub>",
+    xaxis_title=col_x,
+    yaxis_title=col_y
 )
 
-# Layout en grid
+# === Grid Layout ===
 g1, g2 = st.columns(2)
 g1.plotly_chart(hist, use_container_width=True)
 g2.plotly_chart(bars, use_container_width=True)
@@ -115,6 +146,5 @@ g3, g4 = st.columns(2)
 g3.plotly_chart(scatter, use_container_width=True)
 g4.plotly_chart(heatmap, use_container_width=True)
 
-# Tabla final
 st.markdown("### 🧾 Tabla de datos filtrados")
 st.dataframe(df_filtrado)
