@@ -66,6 +66,7 @@ with st.sidebar:
 
     if st.button("🔄 Resetear filtros"):
         reset_defaults()
+        st.experimental_rerun()
 
     col_cat = st.selectbox("Filtrar por categoría", categoricas, key="col_cat")
     valores_cat = sorted(df[col_cat].dropna().apply(lambda x: str(x).strip()).unique())
@@ -95,4 +96,73 @@ with st.sidebar:
     else:
         selected_range = (None, None)
 
-# (rest of the code remains unchanged)
+# === FILTROS DE DATOS ===
+base_filter = (
+    (df[col_x] >= selected_range[0]) &
+    (df[col_x] <= selected_range[1])
+)
+
+if col_cat == "1st Fall Enrollment" and valor_filtro == "All Enrollment":
+    df_filtrado = df[base_filter]
+else:
+    df_filtrado = df[(df[col_cat].apply(lambda x: str(x).strip()) == valor_filtro) & base_filter]
+
+if selected_procedencia != "Todas":
+    df_filtrado = df_filtrado[df_filtrado["Procedencia"].apply(lambda x: str(x).strip()) == selected_procedencia]
+
+# === MÉTRICAS ===
+st.markdown("## 📊 Dashboard Estudiantil")
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Total registros", f"{len(df_filtrado):,}")
+c2.metric("Promedio General", f"{df_filtrado['Índice General'].mean():.2f}")
+c3.metric("Promedio Científico", f"{df_filtrado['Índice Científico'].mean():.2f}")
+c4.metric("Promedio PCAT", f"{df_filtrado['PCAT'].mean():.2f}")
+
+# === HISTOGRAMA ===
+hist = go.Figure()
+hist.add_trace(go.Histogram(x=df_filtrado[col_x], nbinsx=10, marker_color="#1f77b4"))
+hist.update_layout(title=f"Distribución de {col_x}", xaxis_title=col_x, yaxis_title="Frecuencia")
+
+# === BARRAS ===
+valores_barras = df_filtrado[col_cat].dropna().apply(lambda x: str(x).strip()).value_counts().sort_index()
+bars = go.Figure()
+bars.add_trace(go.Bar(x=valores_barras.index.astype(str), y=valores_barras.values, marker_color="#2c3e50"))
+bars.update_layout(title=f"Distribución de {col_cat}", xaxis_title=col_cat, yaxis_title="Cantidad", xaxis_type='category')
+
+# === HEATMAP ===
+datos_cor = df_filtrado[notas_letra + continuas].dropna(how="all", axis=1)
+matriz = datos_cor.corr()
+heatmap = go.Figure(data=go.Heatmap(z=matriz.values, x=matriz.columns, y=matriz.index, colorscale="Blues", zmin=-1, zmax=1))
+heatmap.update_layout(title="Correlación entre notas y métricas", xaxis_tickangle=45)
+
+# === SCATTER + REGRESIÓN ===
+x_vals = df_filtrado[col_x].dropna()
+y_vals = df_filtrado[col_y].dropna()
+valid_idx = x_vals.index.intersection(y_vals.index)
+x_clean = x_vals.loc[valid_idx].values.reshape(-1, 1)
+y_clean = y_vals.loc[valid_idx].values.reshape(-1, 1)
+
+model = LinearRegression()
+model.fit(x_clean, y_clean)
+y_pred = model.predict(x_clean)
+r2 = r2_score(y_clean, y_pred)
+slope = model.coef_[0][0]
+intercept = model.intercept_[0]
+equation = f"y = {slope:.2f}x + {intercept:.2f}<br>R² = {r2:.3f}"
+
+scatter = go.Figure()
+scatter.add_trace(go.Scatter(x=x_clean.flatten(), y=y_clean.flatten(), mode='markers', name='Datos'))
+scatter.add_trace(go.Scatter(x=x_clean.flatten(), y=y_pred.flatten(), mode='lines', name='Regresión', line=dict(color='orange')))
+scatter.update_layout(title=f"{col_x} vs {col_y} con regresión<br><sub>{equation}</sub>", xaxis_title=col_x, yaxis_title=col_y)
+
+# === LAYOUT FINAL ===
+g1, g2 = st.columns(2)
+g1.plotly_chart(hist, use_container_width=True)
+g2.plotly_chart(bars, use_container_width=True)
+
+g3, g4 = st.columns(2)
+g3.plotly_chart(scatter, use_container_width=True)
+g4.plotly_chart(heatmap, use_container_width=True)
+
+st.markdown("### 🧾 Tabla de datos filtrados")
+st.dataframe(df_filtrado)
