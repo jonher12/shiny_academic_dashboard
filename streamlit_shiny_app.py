@@ -24,35 +24,39 @@ FILE_ID = st.secrets["FILE_ID"]
 df = load_data_from_gdrive(FILE_ID)
 
 # === VARIABLES ===
-demograficas = [
-    "Procedencia", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"
-]
-ocultas_tabla = ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"]
+columnas_ocultas = ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"]
+demograficas = ["Procedencia", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"]
 notas_cursos = [
     "Español Básico Nota 1", "Español Básico Nota 2", "Inglés Básico Nota 1", "Inglés Básico Nota 2",
-    "Ciencias Sociales Nota 1", "Ciencias Sociales Nota 2", 
+    "Ciencias Sociales Nota 1", "Ciencias Sociales Nota 2",
     "Introducción al Estudio de la Cultura de Occidente Nota 1", "Introducción al Estudio de la Cultura de Occidente Nota 2",
     "Economía Nota 1", "Economía Nota 2", "Psicología Nota 1", "Idioma (Inglés o Español) Nota 1",
     "Biología General Nota 1", "Biología General Nota 2", "Biología General Nota 3", "Biología General Nota 4",
     "Biología General (D)", "Química General Nota 1", "Química General Nota 2", "Química General Nota 3", "Química General Nota 4", "Química General (D)",
-    "Química Orgánica Nota 1", "Química Orgánica Nota 2", "Química Orgánica Nota 3", "Química Orgánica Nota 4", "Química Orgánica (W)", "Química Orgánica (D)", "Química Orgánica (F)",
+    "Química Orgánica Nota 1", "Química Orgánica Nota 2", "Química Orgánica Nota 3", "Química Orgánica Nota 4",
+    "Química Orgánica (W)", "Química Orgánica (D)", "Química Orgánica (F)",
     "Matemática - Pre-Cálculo Nota 1", "Matemática - Pre-Cálculo Nota 2", "Matemática - Pre-Cálculo (D)", "Matemática - Pre-Cálculo (F)",
     "Cálculo I Nota 1", "Cálculo I Nota 2", "Cálculo I (D)", "Cálculo I (F)",
-    "Física General Nota 1", "Física General Nota 2", "Física General Nota 3", "Física General Nota 4", "Física General (D)", "Física General (F)",
-    "Lab. Física General Nota 1", "Lab. Física General Nota 2",
+    "Física General Nota 1", "Física General Nota 2", "Física General Nota 3", "Física General Nota 4",
+    "Física General (D)", "Física General (F)", "Lab. Física General Nota 1", "Lab. Física General Nota 2",
     "An. y Fisiología Nota 1", "An. y Fisiología Nota 2", "An. y Fisiología Nota 3", "An. y Fisiología Nota 4"
 ]
 continuas = ["Índice General", "Índice Científico", "PCAT"]
-categoricas = [col for col in df.columns if col not in continuas + ocultas_tabla + ["Procedencia"]]
-nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
 
+# Columnas categóricas válidas
+categoricas = [col for col in df.columns if col not in continuas + columnas_ocultas and col in demograficas + notas_cursos]
+
+nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
 df[notas_cursos] = df[notas_cursos].apply(lambda col: col.map(lambda x: nota_map.get(str(x).strip().upper(), np.nan)))
 
 # === SIDEBAR ===
 with st.sidebar:
     st.header("🎛️ Filtros")
 
-    col_cat = st.selectbox("Filtrar por categoría", categoricas, index=categoricas.index("1st Fall Enrollment"))
+    if st.button("🔄 Resetear filtros"):
+        st.rerun()
+
+    col_cat = st.selectbox("Filtrar por categoría", categoricas, index=categoricas.index("1st Fall Enrollment") if "1st Fall Enrollment" in categoricas else 0)
     valores_cat = sorted(df[col_cat].dropna().astype(str).unique())
     if col_cat == "1st Fall Enrollment":
         valores_cat = ["All Enrollment"] + valores_cat
@@ -64,20 +68,18 @@ with st.sidebar:
     y_options = [col for col in continuas if col != col_x]
     col_y = st.selectbox("Variable continua (eje Y)", y_options, index=0)
 
-    min_val = float(df[col_x].min())
-    max_val = float(df[col_x].max())
-    slider_step = 1.0 if col_x == "PCAT" else 0.1
-    selected_range = st.slider(
-        f"Rango de '{col_x}'",
-        min_value=min_val,
-        max_value=max_val,
-        value=(min_val, max_val),
-        step=slider_step,
-        key="slider"
-    )
-
-    if st.button("🔄 Resetear filtros"):
-        st.experimental_rerun()
+    if col_x:
+        min_val = float(df[col_x].min())
+        max_val = float(df[col_x].max())
+        slider_step = 1.0 if col_x == "PCAT" else 0.1
+        selected_range = st.slider(
+            f"Rango de '{col_x}'",
+            min_value=min_val,
+            max_value=max_val,
+            value=(min_val, max_val),
+            step=slider_step,
+            key="slider"
+        )
 
 # === FILTRADO ===
 df_filtrado = df.copy()
@@ -101,18 +103,22 @@ c2.metric("Promedio General", f"{df_filtrado['Índice General'].mean():.2f}")
 c3.metric("Promedio Científico", f"{df_filtrado['Índice Científico'].mean():.2f}")
 c4.metric("Promedio PCAT", f"{df_filtrado['PCAT'].mean():.2f}")
 
-# === GRÁFICOS ===
+# === HISTOGRAMA ===
 hist = go.Figure()
 hist.add_trace(go.Histogram(x=df_filtrado[col_x], nbinsx=10, marker_color="#1f77b4"))
 hist.update_layout(title=f"Distribución de {col_x}", xaxis_title=col_x, yaxis_title="Frecuencia")
 
+# === BARRAS ===
 valores_barras = df_filtrado[col_cat].dropna().astype(str).value_counts().sort_index()
 bars = go.Figure()
 bars.add_trace(go.Bar(x=valores_barras.index, y=valores_barras.values, marker_color="#2c3e50"))
 bars.update_layout(title=f"Distribución de {col_cat}", xaxis_title=col_cat, yaxis_title="Cantidad", xaxis_type='category')
 
+# === MATRIZ DE CORRELACIÓN ===
 columnas_cor = notas_cursos + continuas
-matriz = df_filtrado[columnas_cor].corr()
+datos_cor = df_filtrado[columnas_cor].copy()
+matriz = datos_cor.corr()
+
 heatmap = go.Figure(data=go.Heatmap(
     z=matriz.values,
     x=matriz.columns,
@@ -149,17 +155,4 @@ equation = f"y = {slope:.2f}x + {intercept:.2f}<br>R² = {r2:.3f}"
 scatter = go.Figure()
 scatter.add_trace(go.Scatter(x=x_clean.flatten(), y=y_clean.flatten(), mode='markers', name='Datos'))
 scatter.add_trace(go.Scatter(x=x_clean.flatten(), y=y_pred.flatten(), mode='lines', name='Regresión', line=dict(color='orange')))
-scatter.update_layout(title=f"{col_x} vs {col_y} con regresión<br><sub>{equation}</sub>", xaxis_title=col_x, yaxis_title=col_y)
-
-# === LAYOUT ===
-g1, g2 = st.columns(2)
-g1.plotly_chart(hist, use_container_width=True)
-g2.plotly_chart(bars, use_container_width=True)
-
-g3, g4 = st.columns(2)
-g3.plotly_chart(scatter, use_container_width=True)
-g4.plotly_chart(heatmap, use_container_width=True)
-
-# === TABLA (excluyendo columnas ocultas) ===
-st.markdown("### 🧾 Tabla de datos filtrados")
-st.dataframe(df_filtrado.drop(columns=ocultas_tabla, errors="ignore"))
+scatter.update_layout(title=f"{col_x} vs {col_y} con regresión<br><sub>{ ​:contentReference[oaicite:0]{index=0}​
