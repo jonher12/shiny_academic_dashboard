@@ -46,7 +46,7 @@ cursos_requeridos = [
     "An. y Fisiología Nota 1", "An. y Fisiología Nota 2", "An. y Fisiología Nota 3", "An. y Fisiología Nota 4"
 ]
 
-categoricas = ["1st Fall Enrollment", "Procedencia"] + cursos_requeridos
+categoricas = ["1st Fall Enrollment"] + cursos_requeridos
 continuas = ["Índice General", "Índice Científico", "PCAT"]
 notas_letra = cursos_requeridos
 nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
@@ -57,12 +57,13 @@ with st.sidebar:
     st.header("🎚️ Filtros")
 
     col_cat = st.selectbox("Filtrar por categoría", categoricas)
-
     valores_cat = sorted(df[col_cat].dropna().apply(lambda x: str(x).strip()).unique())
     if col_cat == "1st Fall Enrollment":
         valores_cat = ["All Enrollment"] + valores_cat
-
     valor_filtro = st.selectbox(f"Valor en '{col_cat}'", valores_cat, index=0)
+
+    procedencias = sorted(df["Procedencia"].dropna().apply(lambda x: str(x).strip()).unique())
+    selected_procedencia = st.selectbox("Procedencia", ["Todas"] + procedencias)
 
     col_x = st.selectbox("Variable continua (eje X)", continuas)
     y_options = [col for col in continuas if col != col_x]
@@ -83,21 +84,21 @@ with st.sidebar:
         selected_range = (None, None)
 
 # === FILTRO PRINCIPAL ===
-if col_cat == "1st Fall Enrollment" and valor_filtro == "All Enrollment":
-    df_filtrado = df[
-        (df[col_x] >= selected_range[0]) &
-        (df[col_x] <= selected_range[1])
-    ]
-    corr_df = df.copy()
-    barras_df = df.copy()
-else:
-    df_filtrado = df[
-        (df[col_cat].apply(lambda x: str(x).strip()) == valor_filtro) &
-        (df[col_x] >= selected_range[0]) &
-        (df[col_x] <= selected_range[1])
-    ]
-    corr_df = df_filtrado.copy()
-    barras_df = df_filtrado.copy()
+df_temp = df.copy()
+if col_cat == "1st Fall Enrollment" and valor_filtro != "All Enrollment":
+    df_temp = df_temp[df_temp[col_cat].apply(lambda x: str(x).strip()) == valor_filtro]
+elif col_cat != "1st Fall Enrollment":
+    df_temp = df_temp[df_temp[col_cat].apply(lambda x: str(x).strip()) == valor_filtro]
+
+if selected_procedencia != "Todas":
+    df_temp = df_temp[df_temp["Procedencia"].apply(lambda x: str(x).strip()) == selected_procedencia]
+
+df_filtrado = df_temp[
+    (df_temp[col_x] >= selected_range[0]) &
+    (df_temp[col_x] <= selected_range[1])
+]
+corr_df = df_filtrado.copy()
+barras_df = df_temp.copy()
 
 # === MÉTRICAS ===
 st.markdown("## 📊 Dashboard Estudiantil")
