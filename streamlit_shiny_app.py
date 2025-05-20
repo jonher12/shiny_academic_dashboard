@@ -136,7 +136,13 @@ heatmap = go.Figure(data=go.Heatmap(
     zmin=-1,
     zmax=1
 ))
-heatmap.update_layout(title="Correlación entre notas y métricas")
+heatmap.update_layout(
+    title="Correlación entre notas y métricas",
+    width=1200,
+    height=1000,
+    margin=dict(l=250, r=50, b=250, t=50),
+    xaxis_tickangle=45
+)
 
 # === REGRESIÓN LINEAL ===
 x_vals = df_filtrado[col_x].dropna().values.reshape(-1, 1)
