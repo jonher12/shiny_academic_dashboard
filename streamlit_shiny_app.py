@@ -126,12 +126,12 @@ bars.update_layout(
 
 # === MATRIZ DE CORRELACIÓN ===
 columnas_cor = notas_letra + continuas
-datos_cor = corr_df[columnas_cor].replace({pd.NA: np.nan})
-matriz = pd.DataFrame(np.corrcoef(datos_cor.T, rowvar=True), index=columnas_cor, columns=columnas_cor)
+datos_cor = corr_df[columnas_cor].dropna(how='any')  # Eliminar filas con cualquier NaN
+data_corr = datos_cor.corr()
 heatmap = go.Figure(data=go.Heatmap(
-    z=matriz.values,
-    x=matriz.columns,
-    y=matriz.index,
+    z=data_corr.values,
+    x=data_corr.columns,
+    y=data_corr.index,
     colorscale="Blues",
     zmin=-1,
     zmax=1
