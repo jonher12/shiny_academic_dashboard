@@ -11,108 +11,82 @@ from sklearn.metrics import r2_score
 # === CONFIGURACIÓN DE PÁGINA ===
 st.set_page_config(page_title="Dashboard Estudiantil", layout="wide")
 
-# === FUNCIÓN PARA CARGAR DATOS ===
+# === CARGAR DATOS ===
 @st.cache_data
 def load_data_from_gdrive(file_id: str) -> pd.DataFrame:
     url = f"https://drive.google.com/uc?id={file_id}&export=download"
-    response = requests.get(url)
-    if response.status_code == 200:
-        return pd.read_csv(BytesIO(response.content), encoding="latin1")
-    else:
-        st.error(f"Error al descargar archivo: {response.status_code}")
-        return pd.DataFrame()
+    r = requests.get(url)
+    return pd.read_csv(BytesIO(r.content), encoding="latin1")
 
-# === CARGAR DATOS ===
 FILE_ID = st.secrets["FILE_ID"]
 df = load_data_from_gdrive(FILE_ID)
 
-# === VARIABLES ===
-demograficas = ["Procedencia", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"]
-notas_cursos = [
-    "Español Básico Nota 1", "Español Básico Nota 2",
-    "Inglés Básico Nota 1", "Inglés Básico Nota 2",
-    "Ciencias Sociales Nota 1", "Ciencias Sociales Nota 2",
-    "Economía Nota 1", "Economía Nota 2"
+# === DEFINICIONES DE VARIABLES ===
+demograficas = [
+    "Procedencia", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"
 ]
+excluir_cat = ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"]
+notas_cursos = [col for col in df.columns if "Nota" in col or "(D)" in col or "(F)" in col or "(W)" in col]
 continuas = ["Índice General", "Índice Científico", "PCAT"]
-categoricas = [col for col in df.columns if col not in demograficas + ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"] and col not in continuas]
-
-# Mapear notas
+categoricas = [col for col in df.select_dtypes(include=["object", "category"]).columns if col not in excluir_cat and col not in continuas]
 nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
+
 df[notas_cursos] = df[notas_cursos].apply(lambda col: col.map(lambda x: nota_map.get(str(x).strip().upper(), np.nan)))
 
-# === VALORES DEFAULT ===
-default_filters = {
-    "col_cat": "1st Fall Enrollment",
-    "valor_filtro": "All Enrollment",
-    "col_proc": "Todas",
-    "col_x": "Índice General",
-    "col_y": "Índice Científico"
-}
+# === VALORES POR DEFECTO ===
+default_cat = "1st Fall Enrollment"
+default_val = "All Enrollment"
+default_proc = "Todas"
+default_x = "Índice General"
+default_y = "Índice Científico"
 
-# === GESTIÓN DE SESIÓN ===
-if "reset_filters" not in st.session_state:
-    st.session_state.reset_filters = False
-
-# === SIDEBAR ===
+# === SIDEBAR: CONTROLES ===
 with st.sidebar:
     st.header("📊 Filtros")
-
+    
     if st.button("🔄 Resetear filtros"):
-        for k, v in default_filters.items():
-            st.session_state[k] = v
-        st.session_state.slider = None
+        st.session_state.clear()
 
-    col_cat = st.selectbox("Filtrar por categoría", categoricas, key="col_cat")
-    valores_cat = sorted(df[col_cat].dropna().astype(str).unique())
-    if col_cat == "1st Fall Enrollment":
-        valores_cat = ["All Enrollment"] + valores_cat
-    valor_filtro = st.selectbox(f"Valor en '{col_cat}'", valores_cat, key="valor_filtro")
+    col_cat = st.selectbox("Filtrar por categoría", options=[default_cat] + sorted([c for c in categoricas if c != default_cat]), key="col_cat")
+    valores = sorted(df[col_cat].dropna().astype(str).unique())
+    if col_cat == default_cat:
+        valores = [default_val] + valores
+    val_cat = st.selectbox(f"Valor en '{col_cat}'", valores, key="val_cat")
 
-    col_proc = st.selectbox("Procedencia", ["Todas"] + sorted(df["Procedencia"].dropna().astype(str).unique()), key="col_proc")
+    val_proc = st.selectbox("Procedencia", options=["Todas"] + sorted(df["Procedencia"].dropna().astype(str).unique()), key="val_proc")
 
-    col_x = st.selectbox("Variable continua (eje X)", continuas, key="col_x")
-    col_y_options = [c for c in continuas if c != col_x]
-    col_y = st.selectbox("Variable continua (eje Y)", col_y_options, key="col_y")
+    col_x = st.selectbox("Variable continua (eje X)", options=continuas, index=0, key="col_x")
+    col_y = st.selectbox("Variable continua (eje Y)", options=[c for c in continuas if c != col_x], key="col_y")
 
-    min_val = float(df[col_x].min())
-    max_val = float(df[col_x].max())
+    slider_min = float(df[col_x].min())
+    slider_max = float(df[col_x].max())
     slider_step = 1.0 if col_x == "PCAT" else 0.1
-    selected_range = st.slider(
-        f"Rango de '{col_x}'",
-        min_value=min_val,
-        max_value=max_val,
-        value=(min_val, max_val),
-        step=slider_step,
-        key="slider"
-    )
+    selected_range = st.slider(f"Rango de '{col_x}'", min_value=slider_min, max_value=slider_max, value=(slider_min, slider_max), step=slider_step, key="slider")
 
 # === FILTRADO ===
 df_filtrado = df.copy()
-if col_cat == "1st Fall Enrollment" and valor_filtro != "All Enrollment":
-    df_filtrado = df_filtrado[df_filtrado[col_cat].astype(str) == valor_filtro]
-elif col_cat != "1st Fall Enrollment":
-    df_filtrado = df_filtrado[df_filtrado[col_cat].astype(str) == valor_filtro]
-
-if col_proc != "Todas":
-    df_filtrado = df_filtrado[df_filtrado["Procedencia"].astype(str) == col_proc]
-
+if col_cat == default_cat and val_cat != default_val:
+    df_filtrado = df_filtrado[df_filtrado[col_cat].astype(str) == val_cat]
+elif col_cat != default_cat:
+    df_filtrado = df_filtrado[df_filtrado[col_cat].astype(str) == val_cat]
+if val_proc != "Todas":
+    df_filtrado = df_filtrado[df_filtrado["Procedencia"].astype(str) == val_proc]
 df_filtrado = df_filtrado[(df_filtrado[col_x] >= selected_range[0]) & (df_filtrado[col_x] <= selected_range[1])]
 
 # === MÉTRICAS ===
-st.markdown("## 📊 Dashboard Estudiantil")
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Total registros", f"{len(df_filtrado):,}")
-c2.metric("Promedio General", f"{df_filtrado['Índice General'].mean():.2f}")
-c3.metric("Promedio Científico", f"{df_filtrado['Índice Científico'].mean():.2f}")
-c4.metric("Promedio PCAT", f"{df_filtrado['PCAT'].mean():.2f}")
+st.title("📈 Dashboard Estudiantil")
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Total registros", f"{len(df_filtrado):,}")
+col2.metric("Promedio General", f"{df_filtrado['Índice General'].mean():.2f}")
+col3.metric("Promedio Científico", f"{df_filtrado['Índice Científico'].mean():.2f}")
+col4.metric("Promedio PCAT", f"{df_filtrado['PCAT'].mean():.2f}")
 
-# === HISTOGRAMA ===
+# === GRÁFICO: HISTOGRAMA ===
 hist = go.Figure()
 hist.add_trace(go.Histogram(x=df_filtrado[col_x], nbinsx=10, marker_color="#1f77b4"))
 hist.update_layout(title=f"Distribución de {col_x}", xaxis_title=col_x, yaxis_title="Frecuencia")
 
-# === BARRAS ===
+# === GRÁFICO: BARRAS CATEGÓRICAS ===
 valores_barras = df_filtrado[col_cat].dropna().astype(str).value_counts().sort_index()
 bars = go.Figure()
 bars.add_trace(go.Bar(x=valores_barras.index, y=valores_barras.values, marker_color="#2c3e50"))
@@ -120,8 +94,8 @@ bars.update_layout(title=f"Distribución de {col_cat}", xaxis_title=col_cat, yax
 
 # === MATRIZ DE CORRELACIÓN ===
 columnas_cor = notas_cursos + continuas
-corr_df = df_filtrado[columnas_cor].replace({pd.NA: np.nan})
-matriz = corr_df.corr()
+datos_cor = df_filtrado[columnas_cor].copy()
+matriz = datos_cor.corr()
 
 heatmap = go.Figure(data=go.Heatmap(
     z=matriz.values,
@@ -136,9 +110,9 @@ heatmap.update_layout(
     title="Correlación entre notas y métricas",
     xaxis=dict(tickangle=45, tickfont=dict(size=10), automargin=True),
     yaxis=dict(tickfont=dict(size=10), automargin=True),
-    width=1100,
-    height=900,
-    margin=dict(t=60, l=200, r=50, b=200)
+    width=1200,
+    height=1000,
+    margin=dict(t=80, l=200, r=50, b=200)
 )
 
 # === SCATTER + REGRESIÓN ===
@@ -161,7 +135,7 @@ scatter.add_trace(go.Scatter(x=x_clean.flatten(), y=y_clean.flatten(), mode='mar
 scatter.add_trace(go.Scatter(x=x_clean.flatten(), y=y_pred.flatten(), mode='lines', name='Regresión', line=dict(color='orange')))
 scatter.update_layout(title=f"{col_x} vs {col_y} con regresión<br><sub>{equation}</sub>", xaxis_title=col_x, yaxis_title=col_y)
 
-# === LAYOUT ===
+# === VISUALIZACIÓN DE PLOTS ===
 g1, g2 = st.columns(2)
 g1.plotly_chart(hist, use_container_width=True)
 g2.plotly_chart(bars, use_container_width=True)
@@ -170,8 +144,6 @@ g3, g4 = st.columns(2)
 g3.plotly_chart(scatter, use_container_width=True)
 g4.plotly_chart(heatmap, use_container_width=True)
 
-# === TABLA DE DATOS ===
+# === TABLA ===
 st.markdown("### 🧾 Tabla de datos filtrados")
-columnas_excluir = ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"]
-columnas_mostrar = [col for col in df_filtrado.columns if col not in columnas_excluir]
-st.dataframe(df_filtrado[columnas_mostrar])
+st.dataframe(df_filtrado.drop(columns=excluir_cat, errors='ignore'))
