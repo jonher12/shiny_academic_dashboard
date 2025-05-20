@@ -46,8 +46,20 @@ with st.sidebar:
     valor_filtro = st.selectbox(f"Valor en '{col_cat}'", valores_cat)
     col_cont = st.selectbox("Variable continua a graficar", continuas)
 
+    # Slider dinámico para rango continuo
+    min_val = float(df[col_cont].min())
+    max_val = float(df[col_cont].max())
+    selected_range = st.slider(
+        f"Rango de '{col_cont}'", min_value=min_val, max_value=max_val,
+        value=(min_val, max_val), step=0.1
+    )
+
 # === FILTRADO DINÁMICO ===
-df_filtrado = df[df[col_cat].apply(lambda x: str(x).strip()) == valor_filtro]
+df_filtrado = df[
+    (df[col_cat].apply(lambda x: str(x).strip()) == valor_filtro) &
+    (df[col_cont] >= selected_range[0]) &
+    (df[col_cont] <= selected_range[1])
+]
 
 # === TÍTULO ===
 st.markdown("## 📊 Dashboard Estudiantil")
