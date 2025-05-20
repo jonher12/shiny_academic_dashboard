@@ -83,7 +83,7 @@ with st.sidebar:
         )
 
         if st.button("🔄 Reset filtros"):
-            st.experimental_rerun()
+            st.rerun()
 
 # === FILTRADO ===
 df_filtrado = df.copy()
