@@ -1,5 +1,4 @@
 import streamlit as st
-import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
@@ -28,8 +27,8 @@ df = load_data_from_gdrive(FILE_ID)
 
 # === VARIABLES ===
 demograficas = [
-    "Procedencia", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"  
-    #"Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente", 
+    "Nombre", "Numero de Estudiante", "Email UPR", "Procedencia", 
+    "Número de Expediente", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"
 ]
 notas_cursos = [
     "Español Básico Nota 1", "Español Básico Nota 2", "Inglés Básico Nota 1", "Inglés Básico Nota 2",
@@ -46,9 +45,12 @@ notas_cursos = [
     "An. y Fisiología Nota 1", "An. y Fisiología Nota 2", "An. y Fisiología Nota 3", "An. y Fisiología Nota 4"
 ]
 continuas = ["Índice General", "Índice Científico", "PCAT"]
-categoricas = [col for col in df.columns if col not in continuas]
-nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
+# Eliminar columnas no deseadas de los filtros categóricos
+excluir_de_categoricas = ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"]
+categoricas = [col for col in df.columns if col not in continuas + excluir_de_categoricas]
 
+# Mapping de letras
+nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
 df[notas_cursos] = df[notas_cursos].apply(lambda col: col.map(lambda x: nota_map.get(str(x).strip().upper(), np.nan)))
 
 # === SIDEBAR ===
@@ -79,6 +81,9 @@ with st.sidebar:
             step=slider_step,
             key="slider"
         )
+
+        if st.button("🔄 Reset filtros"):
+            st.experimental_rerun()
 
 # === FILTRADO ===
 df_filtrado = df.copy()
@@ -113,7 +118,7 @@ bars = go.Figure()
 bars.add_trace(go.Bar(x=valores_barras.index, y=valores_barras.values, marker_color="#2c3e50"))
 bars.update_layout(title=f"Distribución de {col_cat}", xaxis_title=col_cat, yaxis_title="Cantidad", xaxis_type='category')
 
-# === MATRIZ DE CORRELACIÓN (corrige referencias) ===
+# === MATRIZ DE CORRELACIÓN ===
 columnas_cor = notas_cursos + continuas
 datos_cor = df_filtrado[columnas_cor].replace({pd.NA: np.nan})
 matriz = datos_cor.corr()
@@ -165,6 +170,6 @@ g3, g4 = st.columns(2)
 g3.plotly_chart(scatter, use_container_width=True)
 g4.plotly_chart(heatmap, use_container_width=True)
 
-# === TABLA ===
+# === TABLA FINAL ===
 st.markdown("### 🧾 Tabla de datos filtrados")
 st.dataframe(df_filtrado)
