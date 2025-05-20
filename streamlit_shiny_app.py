@@ -24,6 +24,11 @@ FILE_ID = st.secrets["FILE_ID"]
 df = load_data_from_gdrive(FILE_ID)
 
 # === VARIABLES ===
+demograficas = [
+    "Nombre", "Número de Estudiante", "Email UPR", "Procedencia", "Número de Expediente",
+    "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"
+]
+
 cursos_requeridos = [
     "Español Básico Nota 1", "Español Básico Nota 2",
     "Inglés Básico Nota 1", "Inglés Básico Nota 2",
@@ -41,10 +46,7 @@ cursos_requeridos = [
     "An. y Fisiología Nota 1", "An. y Fisiología Nota 2", "An. y Fisiología Nota 3", "An. y Fisiología Nota 4"
 ]
 
-categoricas = [
-    "1st Fall Enrollment", "Procedencia"
-] + cursos_requeridos
-
+categoricas = ["1st Fall Enrollment", "Procedencia"] + cursos_requeridos
 continuas = ["Índice General", "Índice Científico", "PCAT"]
 notas_letra = cursos_requeridos
 nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
@@ -86,16 +88,16 @@ if col_cat == "1st Fall Enrollment" and valor_filtro == "All Enrollment":
         (df[col_x] >= selected_range[0]) &
         (df[col_x] <= selected_range[1])
     ]
-    corr_df = df
-    barras_df = df
+    corr_df = df.copy()
+    barras_df = df.copy()
 else:
     df_filtrado = df[
         (df[col_cat].apply(lambda x: str(x).strip()) == valor_filtro) &
         (df[col_x] >= selected_range[0]) &
         (df[col_x] <= selected_range[1])
     ]
-    corr_df = df_filtrado
-    barras_df = df_filtrado
+    corr_df = df_filtrado.copy()
+    barras_df = df_filtrado.copy()
 
 # === MÉTRICAS ===
 st.markdown("## 📊 Dashboard Estudiantil")
@@ -122,12 +124,16 @@ bars.update_layout(
 )
 
 # === MATRIZ DE CORRELACIÓN ===
-columnas_cor = notas_letra + continuas
+columnas_cor = list(set(notas_letra + continuas))
 datos_cor = corr_df[columnas_cor].replace({pd.NA: np.nan})
-matriz = datos_cor.corr()
+matriz = datos_cor.corr(numeric_only=True)
 heatmap = go.Figure(data=go.Heatmap(
-    z=matriz.values, x=matriz.columns, y=matriz.index,
-    colorscale="Blues", zmin=-1, zmax=1
+    z=matriz.values,
+    x=matriz.columns,
+    y=matriz.index,
+    colorscale="Blues",
+    zmin=-1,
+    zmax=1
 ))
 heatmap.update_layout(title="Correlación entre notas y métricas")
 
