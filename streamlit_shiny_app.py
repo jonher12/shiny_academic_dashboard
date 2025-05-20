@@ -126,28 +126,23 @@ bars.update_layout(
 
 # === MATRIZ DE CORRELACIÓN ===
 columnas_cor = notas_letra + continuas
-datos_cor = corr_df[columnas_cor].dropna(how='any')
-
-if datos_cor.shape[0] >= 2:
-    data_corr = datos_cor.corr()
-    heatmap = go.Figure(data=go.Heatmap(
-        z=data_corr.values,
-        x=data_corr.columns,
-        y=data_corr.index,
-        colorscale="Blues",
-        zmin=-1,
-        zmax=1
-    ))
-    heatmap.update_layout(
-        title="Correlación entre notas y métricas",
-        width=1200,
-        height=1000,
-        margin=dict(l=250, r=50, b=250, t=50),
-        xaxis_tickangle=45
-    )
-    show_heatmap = True
-else:
-    show_heatmap = False
+datos_cor = corr_df[columnas_cor].replace({pd.NA: np.nan})
+matriz = datos_cor.corr()
+heatmap = go.Figure(data=go.Heatmap(
+    z=matriz.values,
+    x=matriz.columns,
+    y=matriz.index,
+    colorscale="Blues",
+    zmin=-1,
+    zmax=1
+))
+heatmap.update_layout(
+    title="Correlación entre notas y métricas",
+    width=1200,
+    height=1000,
+    margin=dict(l=250, r=50, b=250, t=50),
+    xaxis_tickangle=45
+)
 
 # === REGRESIÓN LINEAL ===
 x_vals = df_filtrado[col_x].dropna().values.reshape(-1, 1)
@@ -192,10 +187,7 @@ g2.plotly_chart(bars, use_container_width=True)
 
 g3, g4 = st.columns(2)
 g3.plotly_chart(scatter, use_container_width=True)
-if show_heatmap:
-    g4.plotly_chart(heatmap, use_container_width=True)
-else:
-    g4.warning("⚠️ No hay suficientes datos completos para calcular la matriz de correlación.")
+g4.plotly_chart(heatmap, use_container_width=True)
 
 # === TABLA ===
 st.markdown("### 🧾 Tabla de datos filtrados")
