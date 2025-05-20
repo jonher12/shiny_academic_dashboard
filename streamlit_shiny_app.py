@@ -42,10 +42,7 @@ notas_cursos = [
     "An. y Fisiología Nota 1", "An. y Fisiología Nota 2", "An. y Fisiología Nota 3", "An. y Fisiología Nota 4"
 ]
 continuas = ["Índice General", "Índice Científico", "PCAT"]
-
-# Columnas categóricas válidas
 categoricas = [col for col in df.columns if col not in continuas + columnas_ocultas and col in demograficas + notas_cursos]
-
 nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
 df[notas_cursos] = df[notas_cursos].apply(lambda col: col.map(lambda x: nota_map.get(str(x).strip().upper(), np.nan)))
 
@@ -68,18 +65,17 @@ with st.sidebar:
     y_options = [col for col in continuas if col != col_x]
     col_y = st.selectbox("Variable continua (eje Y)", y_options, index=0)
 
-    if col_x:
-        min_val = float(df[col_x].min())
-        max_val = float(df[col_x].max())
-        slider_step = 1.0 if col_x == "PCAT" else 0.1
-        selected_range = st.slider(
-            f"Rango de '{col_x}'",
-            min_value=min_val,
-            max_value=max_val,
-            value=(min_val, max_val),
-            step=slider_step,
-            key="slider"
-        )
+    min_val = float(df[col_x].min())
+    max_val = float(df[col_x].max())
+    slider_step = 1.0 if col_x == "PCAT" else 0.1
+    selected_range = st.slider(
+        f"Rango de '{col_x}'",
+        min_value=min_val,
+        max_value=max_val,
+        value=(min_val, max_val),
+        step=slider_step,
+        key="slider"
+    )
 
 # === FILTRADO ===
 df_filtrado = df.copy()
@@ -155,4 +151,22 @@ equation = f"y = {slope:.2f}x + {intercept:.2f}<br>R² = {r2:.3f}"
 scatter = go.Figure()
 scatter.add_trace(go.Scatter(x=x_clean.flatten(), y=y_clean.flatten(), mode='markers', name='Datos'))
 scatter.add_trace(go.Scatter(x=x_clean.flatten(), y=y_pred.flatten(), mode='lines', name='Regresión', line=dict(color='orange')))
-scatter.update_layout(title=f"{col_x} vs {col_y} con regresión<br><sub>{ ​:contentReference[oaicite:0]{index=0}​
+scatter.update_layout(
+    title=f"{col_x} vs {col_y} con regresión<br><sub>{equation}</sub>",
+    xaxis_title=col_x,
+    yaxis_title=col_y
+)
+
+# === LAYOUT ===
+g1, g2 = st.columns(2)
+g1.plotly_chart(hist, use_container_width=True)
+g2.plotly_chart(bars, use_container_width=True)
+
+g3, g4 = st.columns(2)
+g3.plotly_chart(scatter, use_container_width=True)
+g4.plotly_chart(heatmap, use_container_width=True)
+
+# === TABLA ===
+st.markdown("### 🧾 Tabla de datos filtrados")
+cols_visibles = [col for col in df_filtrado.columns if col not in columnas_ocultas]
+st.dataframe(df_filtrado[cols_visibles])
