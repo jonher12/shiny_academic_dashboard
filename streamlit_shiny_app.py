@@ -28,7 +28,8 @@ df = load_data_from_gdrive(FILE_ID)
 
 # === VARIABLES ===
 demograficas = [
-    "Procedencia", "Número de Expediente", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"  #"Nombre", "Numero de Estudiante", "Email UPR", 
+    "Procedencia", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"  
+    #"Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente", 
 ]
 notas_cursos = [
     "Español Básico Nota 1", "Español Básico Nota 2", "Inglés Básico Nota 1", "Inglés Básico Nota 2",
