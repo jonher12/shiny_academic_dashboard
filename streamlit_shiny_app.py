@@ -48,7 +48,7 @@ with st.sidebar:
     if col_cat == "1st Fall Enrollment":
         valores_cat = ["All Enrollment"] + valores_cat
 
-    valor_filtro = st.selectbox(f"Valor en '{col_cat}'", valores_cat, index=0 if "All Enrollment" in valores_cat else 0)
+    valor_filtro = st.selectbox(f"Valor en '{col_cat}'", valores_cat, index=0)
 
     col_x = st.selectbox("Variable continua (eje X)", continuas)
     y_options = [col for col in continuas if col != col_x]
@@ -74,12 +74,16 @@ if col_cat == "1st Fall Enrollment" and valor_filtro == "All Enrollment":
         (df[col_x] >= selected_range[0]) &
         (df[col_x] <= selected_range[1])
     ]
+    corr_df = df  # Usar todo el df para la correlación
+    barras_df = df
 else:
     df_filtrado = df[
         (df[col_cat].apply(lambda x: str(x).strip()) == valor_filtro) &
         (df[col_x] >= selected_range[0]) &
         (df[col_x] <= selected_range[1])
     ]
+    corr_df = df_filtrado
+    barras_df = df_filtrado
 
 # === MÉTRICAS ===
 st.markdown("## 📊 Dashboard Estudiantil")
@@ -94,8 +98,8 @@ hist = go.Figure()
 hist.add_trace(go.Histogram(x=df_filtrado[col_x], nbinsx=10, marker_color="#1f77b4"))
 hist.update_layout(title=f"Distribución de {col_x}", xaxis_title=col_x, yaxis_title="Frecuencia")
 
-# === GRÁFICO DE BARRAS ===
-valores_barras = df[col_cat].dropna().apply(lambda x: str(x).strip()).value_counts().sort_index()
+# === GRÁFICO DE BARRAS (filtrado dinámico) ===
+valores_barras = barras_df[col_cat].dropna().apply(lambda x: str(x).strip()).value_counts().sort_index()
 bars = go.Figure()
 bars.add_trace(go.Bar(x=valores_barras.index.astype(str), y=valores_barras.values, marker_color="#2c3e50"))
 bars.update_layout(
@@ -105,9 +109,9 @@ bars.update_layout(
     xaxis_type='category'
 )
 
-# === MATRIZ DE CORRELACIÓN ===
+# === MATRIZ DE CORRELACIÓN (filtrada si aplica) ===
 columnas_cor = notas_letra + continuas
-datos_cor = df[columnas_cor].replace({pd.NA: np.nan})
+datos_cor = corr_df[columnas_cor].replace({pd.NA: np.nan})
 matriz = datos_cor.corr()
 heatmap = go.Figure(data=go.Heatmap(
     z=matriz.values, x=matriz.columns, y=matriz.index,
@@ -115,7 +119,7 @@ heatmap = go.Figure(data=go.Heatmap(
 ))
 heatmap.update_layout(title="Correlación entre notas y métricas")
 
-# === REGRESIÓN LINEAL MANUAL ===
+# === REGRESIÓN LINEAL ===
 x_vals = df_filtrado[col_x].dropna().values.reshape(-1, 1)
 y_vals = df_filtrado[col_y].dropna().values.reshape(-1, 1)
 valid_idx = (~np.isnan(x_vals.flatten())) & (~np.isnan(y_vals.flatten()))
@@ -128,7 +132,6 @@ y_pred = model.predict(x_clean)
 r2 = r2_score(y_clean, y_pred)
 slope = model.coef_[0][0]
 intercept = model.intercept_[0]
-
 equation = f"y = {slope:.2f}x + {intercept:.2f}<br>R² = {r2:.3f}"
 
 # === SCATTER PLOT CON REGRESIÓN ===
@@ -161,6 +164,6 @@ g3, g4 = st.columns(2)
 g3.plotly_chart(scatter, use_container_width=True)
 g4.plotly_chart(heatmap, use_container_width=True)
 
-# === TABLA ===
+# === TABLA DE DATOS FILTRADOS ===
 st.markdown("### 🧾 Tabla de datos filtrados")
 st.dataframe(df_filtrado)
