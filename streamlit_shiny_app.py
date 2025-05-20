@@ -113,9 +113,9 @@ bars = go.Figure()
 bars.add_trace(go.Bar(x=valores_barras.index, y=valores_barras.values, marker_color="#2c3e50"))
 bars.update_layout(title=f"Distribución de {col_cat}", xaxis_title=col_cat, yaxis_title="Cantidad", xaxis_type='category')
 
-# === MATRIZ DE CORRELACIÓN (sin eliminar NaNs para que muestre todo) ===
-columnas_cor = notas_letra + continuas  # Asegúrate de incluir todas las columnas necesarias
-datos_cor = corr_df[columnas_cor].replace({pd.NA: np.nan})
+# === MATRIZ DE CORRELACIÓN (corrige referencias) ===
+columnas_cor = notas_cursos + continuas
+datos_cor = df_filtrado[columnas_cor].replace({pd.NA: np.nan})
 matriz = datos_cor.corr()
 
 heatmap = go.Figure(data=go.Heatmap(
