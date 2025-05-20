@@ -41,18 +41,29 @@ df[notas_letra] = df[notas_letra].apply(lambda col: col.map(lambda x: nota_map.g
 # === SIDEBAR ===
 with st.sidebar:
     st.header("🎚️ Filtros")
+    
+    # Filtro categórico
     col_cat = st.selectbox("Filtrar por categoría", categoricas)
     valores_cat = sorted(df[col_cat].dropna().apply(lambda x: str(x).strip()).unique())
     valor_filtro = st.selectbox(f"Valor en '{col_cat}'", valores_cat)
+
+    # Filtro variable continua
     col_cont = st.selectbox("Variable continua a graficar", continuas)
 
-    # Slider dinámico para rango continuo
-    min_val = float(df[col_cont].min())
-    max_val = float(df[col_cont].max())
-    selected_range = st.slider(
-        f"Rango de '{col_cont}'", min_value=min_val, max_value=max_val,
-        value=(min_val, max_val), step=0.1
-    )
+    # Slider para variable continua
+    if col_cont:
+        min_val = float(df[col_cont].min())
+        max_val = float(df[col_cont].max())
+        slider_step = 1.0 if col_cont == "PCAT" else 0.1
+        selected_range = st.slider(
+            f"Rango de '{col_cont}'",
+            min_value=min_val,
+            max_value=max_val,
+            value=(min_val, max_val),
+            step=slider_step
+        )
+    else:
+        selected_range = (None, None)
 
 # === FILTRADO DINÁMICO ===
 df_filtrado = df[
