@@ -8,6 +8,7 @@ from io import BytesIO
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 
+# === CONFIGURACIÓN ===
 st.set_page_config(page_title="Dashboard Estudiantil", layout="wide")
 
 @st.cache_data
@@ -24,25 +25,26 @@ FILE_ID = st.secrets["FILE_ID"]
 df = load_data_from_gdrive(FILE_ID)
 
 # === VARIABLES ===
-columnas_ocultas = ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"]
-demograficas = ["Procedencia", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"]
+demograficas = [
+    "Procedencia", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"
+]
 notas_cursos = [
     "Español Básico Nota 1", "Español Básico Nota 2", "Inglés Básico Nota 1", "Inglés Básico Nota 2",
     "Ciencias Sociales Nota 1", "Ciencias Sociales Nota 2",
-    "Introducción al Estudio de la Cultura de Occidente Nota 1", "Introducción al Estudio de la Cultura de Occidente Nota 2",
+    "Introducción al Estudio de la Cultura de Occidente Nota 1", "Introducción al Estudio de la Cultura de la Cultura de Occidente Nota 2",
     "Economía Nota 1", "Economía Nota 2", "Psicología Nota 1", "Idioma (Inglés o Español) Nota 1",
-    "Biología General Nota 1", "Biología General Nota 2", "Biología General Nota 3", "Biología General Nota 4",
-    "Biología General (D)", "Química General Nota 1", "Química General Nota 2", "Química General Nota 3", "Química General Nota 4", "Química General (D)",
-    "Química Orgánica Nota 1", "Química Orgánica Nota 2", "Química Orgánica Nota 3", "Química Orgánica Nota 4",
-    "Química Orgánica (W)", "Química Orgánica (D)", "Química Orgánica (F)",
+    "Biología General Nota 1", "Biología General Nota 2", "Biología General Nota 3", "Biología General Nota 4", "Biología General (D)",
+    "Química General Nota 1", "Química General Nota 2", "Química General Nota 3", "Química General Nota 4", "Química General (D)",
+    "Química Orgánica Nota 1", "Química Orgánica Nota 2", "Química Orgánica Nota 3", "Química Orgánica Nota 4", "Química Orgánica (W)", "Química Orgánica (D)", "Química Orgánica (F)",
     "Matemática - Pre-Cálculo Nota 1", "Matemática - Pre-Cálculo Nota 2", "Matemática - Pre-Cálculo (D)", "Matemática - Pre-Cálculo (F)",
     "Cálculo I Nota 1", "Cálculo I Nota 2", "Cálculo I (D)", "Cálculo I (F)",
-    "Física General Nota 1", "Física General Nota 2", "Física General Nota 3", "Física General Nota 4",
-    "Física General (D)", "Física General (F)", "Lab. Física General Nota 1", "Lab. Física General Nota 2",
+    "Física General Nota 1", "Física General Nota 2", "Física General Nota 3", "Física General Nota 4", "Física General (D)", "Física General (F)",
+    "Lab. Física General Nota 1", "Lab. Física General Nota 2",
     "An. y Fisiología Nota 1", "An. y Fisiología Nota 2", "An. y Fisiología Nota 3", "An. y Fisiología Nota 4"
 ]
 continuas = ["Índice General", "Índice Científico", "PCAT"]
-categoricas = [col for col in df.columns if col not in continuas + columnas_ocultas and col in demograficas + notas_cursos]
+
+# === MAPEO DE NOTAS ===
 nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
 df[notas_cursos] = df[notas_cursos].apply(lambda col: col.map(lambda x: nota_map.get(str(x).strip().upper(), np.nan)))
 
@@ -51,19 +53,24 @@ with st.sidebar:
     st.header("🎛️ Filtros")
 
     if st.button("🔄 Resetear filtros"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
         st.rerun()
 
-    col_cat = st.selectbox("Filtrar por categoría", categoricas, index=categoricas.index("1st Fall Enrollment") if "1st Fall Enrollment" in categoricas else 0)
+    # === Opciones de filtros ===
+    filtro_excluir = ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente", "Procedencia"]
+    categoricas = [col for col in df.columns if col not in continuas + filtro_excluir]
+
+    col_cat = st.selectbox("Filtrar por categoría", categoricas, key="col_cat")
     valores_cat = sorted(df[col_cat].dropna().astype(str).unique())
     if col_cat == "1st Fall Enrollment":
         valores_cat = ["All Enrollment"] + valores_cat
-    valor_filtro = st.selectbox(f"Valor en '{col_cat}'", valores_cat, index=0)
+    valor_filtro = st.selectbox(f"Valor en '{col_cat}'", valores_cat, key="valor_filtro")
 
-    col_proc = st.selectbox("Procedencia", ["Todas"] + sorted(df["Procedencia"].dropna().astype(str).unique()), index=0)
+    col_proc = st.selectbox("Procedencia", ["Todas"] + sorted(df["Procedencia"].dropna().astype(str).unique()), key="col_proc")
 
-    col_x = st.selectbox("Variable continua (eje X)", continuas, index=0)
-    y_options = [col for col in continuas if col != col_x]
-    col_y = st.selectbox("Variable continua (eje Y)", y_options, index=0)
+    col_x = st.selectbox("Variable continua (eje X)", continuas, key="col_x")
+    col_y = st.selectbox("Variable continua (eje Y)", [c for c in continuas if c != col_x], key="col_y")
 
     min_val = float(df[col_x].min())
     max_val = float(df[col_x].max())
@@ -133,7 +140,7 @@ heatmap.update_layout(
     margin=dict(t=80, l=200, r=50, b=200)
 )
 
-# === SCATTER + REGRESIÓN ===
+# === SCATTER CON REGRESIÓN ===
 x_vals = df_filtrado[col_x].dropna().values.reshape(-1, 1)
 y_vals = df_filtrado[col_y].dropna().values.reshape(-1, 1)
 valid_idx = (~np.isnan(x_vals.flatten())) & (~np.isnan(y_vals.flatten()))
@@ -151,11 +158,7 @@ equation = f"y = {slope:.2f}x + {intercept:.2f}<br>R² = {r2:.3f}"
 scatter = go.Figure()
 scatter.add_trace(go.Scatter(x=x_clean.flatten(), y=y_clean.flatten(), mode='markers', name='Datos'))
 scatter.add_trace(go.Scatter(x=x_clean.flatten(), y=y_pred.flatten(), mode='lines', name='Regresión', line=dict(color='orange')))
-scatter.update_layout(
-    title=f"{col_x} vs {col_y} con regresión<br><sub>{equation}</sub>",
-    xaxis_title=col_x,
-    yaxis_title=col_y
-)
+scatter.update_layout(title=f"{col_x} vs {col_y} con regresión<br><sub>{equation}</sub>", xaxis_title=col_x, yaxis_title=col_y)
 
 # === LAYOUT ===
 g1, g2 = st.columns(2)
@@ -166,7 +169,6 @@ g3, g4 = st.columns(2)
 g3.plotly_chart(scatter, use_container_width=True)
 g4.plotly_chart(heatmap, use_container_width=True)
 
-# === TABLA ===
+# === TABLA FINAL ===
 st.markdown("### 🧾 Tabla de datos filtrados")
-cols_visibles = [col for col in df_filtrado.columns if col not in columnas_ocultas]
-st.dataframe(df_filtrado[cols_visibles])
+st.dataframe(df_filtrado.drop(columns=["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"], errors="ignore"))
