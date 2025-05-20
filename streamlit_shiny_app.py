@@ -23,6 +23,7 @@ def load_data_from_gdrive(file_id: str) -> pd.DataFrame:
 FILE_ID = st.secrets["FILE_ID"]
 df = load_data_from_gdrive(FILE_ID)
 
+# === VARIABLES ===
 categoricas = [
     "1st Fall Enrollment", "Español Básico Nota 1", "Español Básico Nota 2",
     "Inglés Básico Nota 1", "Inglés Básico Nota 2",
@@ -37,11 +38,17 @@ notas_letra = [
 nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
 df[notas_letra] = df[notas_letra].apply(lambda col: col.map(lambda x: nota_map.get(str(x).strip().upper(), np.nan)))
 
+# === SIDEBAR ===
 with st.sidebar:
     st.header("🎚️ Filtros")
+
     col_cat = st.selectbox("Filtrar por categoría", categoricas)
+
     valores_cat = sorted(df[col_cat].dropna().apply(lambda x: str(x).strip()).unique())
-    valor_filtro = st.selectbox(f"Valor en '{col_cat}'", valores_cat)
+    if col_cat == "1st Fall Enrollment":
+        valores_cat = ["All Enrollment"] + valores_cat
+
+    valor_filtro = st.selectbox(f"Valor en '{col_cat}'", valores_cat, index=0 if "All Enrollment" in valores_cat else 0)
 
     col_x = st.selectbox("Variable continua (eje X)", continuas)
     y_options = [col for col in continuas if col != col_x]
@@ -61,12 +68,20 @@ with st.sidebar:
     else:
         selected_range = (None, None)
 
-df_filtrado = df[
-    (df[col_cat].apply(lambda x: str(x).strip()) == valor_filtro) &
-    (df[col_x] >= selected_range[0]) &
-    (df[col_x] <= selected_range[1])
-]
+# === FILTRO PRINCIPAL ===
+if col_cat == "1st Fall Enrollment" and valor_filtro == "All Enrollment":
+    df_filtrado = df[
+        (df[col_x] >= selected_range[0]) &
+        (df[col_x] <= selected_range[1])
+    ]
+else:
+    df_filtrado = df[
+        (df[col_cat].apply(lambda x: str(x).strip()) == valor_filtro) &
+        (df[col_x] >= selected_range[0]) &
+        (df[col_x] <= selected_range[1])
+    ]
 
+# === MÉTRICAS ===
 st.markdown("## 📊 Dashboard Estudiantil")
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Total registros", f"{len(df):,}")
@@ -74,15 +89,15 @@ c2.metric("Promedio General", f"{df['Índice General'].mean():.2f}")
 c3.metric("Promedio Científico", f"{df['Índice Científico'].mean():.2f}")
 c4.metric("Promedio PCAT", f"{df['PCAT'].mean():.2f}")
 
-# === Histogram ===
+# === HISTOGRAMA ===
 hist = go.Figure()
 hist.add_trace(go.Histogram(x=df_filtrado[col_x], nbinsx=10, marker_color="#1f77b4"))
 hist.update_layout(title=f"Distribución de {col_x}", xaxis_title=col_x, yaxis_title="Frecuencia")
 
-# === Categorías como texto para eje x ===
-valores = df[col_cat].dropna().apply(lambda x: str(x).strip()).value_counts().sort_index()
+# === GRÁFICO DE BARRAS ===
+valores_barras = df[col_cat].dropna().apply(lambda x: str(x).strip()).value_counts().sort_index()
 bars = go.Figure()
-bars.add_trace(go.Bar(x=valores.index.astype(str), y=valores.values, marker_color="#2c3e50"))
+bars.add_trace(go.Bar(x=valores_barras.index.astype(str), y=valores_barras.values, marker_color="#2c3e50"))
 bars.update_layout(
     title=f"Distribución de {col_cat}",
     xaxis_title=col_cat,
@@ -90,7 +105,7 @@ bars.update_layout(
     xaxis_type='category'
 )
 
-# === Correlación Heatmap ===
+# === MATRIZ DE CORRELACIÓN ===
 columnas_cor = notas_letra + continuas
 datos_cor = df[columnas_cor].replace({pd.NA: np.nan})
 matriz = datos_cor.corr()
@@ -100,10 +115,9 @@ heatmap = go.Figure(data=go.Heatmap(
 ))
 heatmap.update_layout(title="Correlación entre notas y métricas")
 
-# === Scatter con regresión y ecuación + R² ===
+# === REGRESIÓN LINEAL MANUAL ===
 x_vals = df_filtrado[col_x].dropna().values.reshape(-1, 1)
 y_vals = df_filtrado[col_y].dropna().values.reshape(-1, 1)
-
 valid_idx = (~np.isnan(x_vals.flatten())) & (~np.isnan(y_vals.flatten()))
 x_clean = x_vals[valid_idx].reshape(-1, 1)
 y_clean = y_vals[valid_idx].reshape(-1, 1)
@@ -117,6 +131,7 @@ intercept = model.intercept_[0]
 
 equation = f"y = {slope:.2f}x + {intercept:.2f}<br>R² = {r2:.3f}"
 
+# === SCATTER PLOT CON REGRESIÓN ===
 scatter = go.Figure()
 scatter.add_trace(go.Scatter(
     x=x_clean.flatten(),
@@ -137,7 +152,7 @@ scatter.update_layout(
     yaxis_title=col_y
 )
 
-# === Grid Layout ===
+# === LAYOUT EN GRID ===
 g1, g2 = st.columns(2)
 g1.plotly_chart(hist, use_container_width=True)
 g2.plotly_chart(bars, use_container_width=True)
@@ -146,5 +161,6 @@ g3, g4 = st.columns(2)
 g3.plotly_chart(scatter, use_container_width=True)
 g4.plotly_chart(heatmap, use_container_width=True)
 
+# === TABLA ===
 st.markdown("### 🧾 Tabla de datos filtrados")
 st.dataframe(df_filtrado)
