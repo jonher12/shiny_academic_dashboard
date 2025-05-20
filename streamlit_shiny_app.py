@@ -74,7 +74,7 @@ if col_cat == "1st Fall Enrollment" and valor_filtro == "All Enrollment":
         (df[col_x] >= selected_range[0]) &
         (df[col_x] <= selected_range[1])
     ]
-    corr_df = df  # Usar todo el df para la correlación
+    corr_df = df
     barras_df = df
 else:
     df_filtrado = df[
@@ -98,7 +98,7 @@ hist = go.Figure()
 hist.add_trace(go.Histogram(x=df_filtrado[col_x], nbinsx=10, marker_color="#1f77b4"))
 hist.update_layout(title=f"Distribución de {col_x}", xaxis_title=col_x, yaxis_title="Frecuencia")
 
-# === GRÁFICO DE BARRAS (filtrado dinámico) ===
+# === BARRAS ===
 valores_barras = barras_df[col_cat].dropna().apply(lambda x: str(x).strip()).value_counts().sort_index()
 bars = go.Figure()
 bars.add_trace(go.Bar(x=valores_barras.index.astype(str), y=valores_barras.values, marker_color="#2c3e50"))
@@ -109,7 +109,7 @@ bars.update_layout(
     xaxis_type='category'
 )
 
-# === MATRIZ DE CORRELACIÓN (filtrada si aplica) ===
+# === MATRIZ DE CORRELACIÓN ===
 columnas_cor = notas_letra + continuas
 datos_cor = corr_df[columnas_cor].replace({pd.NA: np.nan})
 matriz = datos_cor.corr()
@@ -134,7 +134,7 @@ slope = model.coef_[0][0]
 intercept = model.intercept_[0]
 equation = f"y = {slope:.2f}x + {intercept:.2f}<br>R² = {r2:.3f}"
 
-# === SCATTER PLOT CON REGRESIÓN ===
+# === SCATTER PLOT ===
 scatter = go.Figure()
 scatter.add_trace(go.Scatter(
     x=x_clean.flatten(),
@@ -155,7 +155,7 @@ scatter.update_layout(
     yaxis_title=col_y
 )
 
-# === LAYOUT EN GRID ===
+# === LAYOUT ===
 g1, g2 = st.columns(2)
 g1.plotly_chart(hist, use_container_width=True)
 g2.plotly_chart(bars, use_container_width=True)
@@ -164,6 +164,6 @@ g3, g4 = st.columns(2)
 g3.plotly_chart(scatter, use_container_width=True)
 g4.plotly_chart(heatmap, use_container_width=True)
 
-# === TABLA DE DATOS FILTRADOS ===
+# === TABLA ===
 st.markdown("### 🧾 Tabla de datos filtrados")
 st.dataframe(df_filtrado)
