@@ -66,7 +66,7 @@ with st.sidebar:
 
     if st.button("🔄 Resetear filtros"):
         reset_defaults()
-        st.rerun()
+        st.experimental_rerun()
 
     col_cat = st.selectbox("Filtrar por categoría", categoricas, key="col_cat")
     valores_cat = sorted(df[col_cat].dropna().apply(lambda x: str(x).strip()).unique())
