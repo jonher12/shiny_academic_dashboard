@@ -8,9 +8,10 @@ from io import BytesIO
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 
-# === CONFIGURACIÓN ===
+# === CONFIGURACIÓN DE PÁGINA ===
 st.set_page_config(page_title="Dashboard Estudiantil", layout="wide")
 
+# === FUNCIÓN PARA CARGAR DATOS ===
 @st.cache_data
 def load_data_from_gdrive(file_id: str) -> pd.DataFrame:
     url = f"https://drive.google.com/uc?id={file_id}&export=download"
@@ -21,45 +22,46 @@ def load_data_from_gdrive(file_id: str) -> pd.DataFrame:
         st.error(f"Error al descargar archivo: {response.status_code}")
         return pd.DataFrame()
 
+# === CARGAR DATOS ===
 FILE_ID = st.secrets["FILE_ID"]
 df = load_data_from_gdrive(FILE_ID)
 
 # === VARIABLES ===
-demograficas = [
-    "Procedencia", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"
-]
+demograficas = ["Procedencia", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"]
 notas_cursos = [
-    "Español Básico Nota 1", "Español Básico Nota 2", "Inglés Básico Nota 1", "Inglés Básico Nota 2",
+    "Español Básico Nota 1", "Español Básico Nota 2",
+    "Inglés Básico Nota 1", "Inglés Básico Nota 2",
     "Ciencias Sociales Nota 1", "Ciencias Sociales Nota 2",
-    "Introducción al Estudio de la Cultura de Occidente Nota 1", "Introducción al Estudio de la Cultura de la Cultura de Occidente Nota 2",
-    "Economía Nota 1", "Economía Nota 2", "Psicología Nota 1", "Idioma (Inglés o Español) Nota 1",
-    "Biología General Nota 1", "Biología General Nota 2", "Biología General Nota 3", "Biología General Nota 4", "Biología General (D)",
-    "Química General Nota 1", "Química General Nota 2", "Química General Nota 3", "Química General Nota 4", "Química General (D)",
-    "Química Orgánica Nota 1", "Química Orgánica Nota 2", "Química Orgánica Nota 3", "Química Orgánica Nota 4", "Química Orgánica (W)", "Química Orgánica (D)", "Química Orgánica (F)",
-    "Matemática - Pre-Cálculo Nota 1", "Matemática - Pre-Cálculo Nota 2", "Matemática - Pre-Cálculo (D)", "Matemática - Pre-Cálculo (F)",
-    "Cálculo I Nota 1", "Cálculo I Nota 2", "Cálculo I (D)", "Cálculo I (F)",
-    "Física General Nota 1", "Física General Nota 2", "Física General Nota 3", "Física General Nota 4", "Física General (D)", "Física General (F)",
-    "Lab. Física General Nota 1", "Lab. Física General Nota 2",
-    "An. y Fisiología Nota 1", "An. y Fisiología Nota 2", "An. y Fisiología Nota 3", "An. y Fisiología Nota 4"
+    "Economía Nota 1", "Economía Nota 2"
 ]
 continuas = ["Índice General", "Índice Científico", "PCAT"]
+categoricas = [col for col in df.columns if col not in demograficas + ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"] and col not in continuas]
 
-# === MAPEO DE NOTAS ===
+# Mapear notas
 nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
 df[notas_cursos] = df[notas_cursos].apply(lambda col: col.map(lambda x: nota_map.get(str(x).strip().upper(), np.nan)))
 
+# === VALORES DEFAULT ===
+default_filters = {
+    "col_cat": "1st Fall Enrollment",
+    "valor_filtro": "All Enrollment",
+    "col_proc": "Todas",
+    "col_x": "Índice General",
+    "col_y": "Índice Científico"
+}
+
+# === GESTIÓN DE SESIÓN ===
+if "reset_filters" not in st.session_state:
+    st.session_state.reset_filters = False
+
 # === SIDEBAR ===
 with st.sidebar:
-    st.header("🎛️ Filtros")
+    st.header("📊 Filtros")
 
     if st.button("🔄 Resetear filtros"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        st.rerun()
-
-    # === Opciones de filtros ===
-    filtro_excluir = ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente", "Procedencia"]
-    categoricas = [col for col in df.columns if col not in continuas + filtro_excluir]
+        for k, v in default_filters.items():
+            st.session_state[k] = v
+        st.session_state.slider = None
 
     col_cat = st.selectbox("Filtrar por categoría", categoricas, key="col_cat")
     valores_cat = sorted(df[col_cat].dropna().astype(str).unique())
@@ -70,7 +72,8 @@ with st.sidebar:
     col_proc = st.selectbox("Procedencia", ["Todas"] + sorted(df["Procedencia"].dropna().astype(str).unique()), key="col_proc")
 
     col_x = st.selectbox("Variable continua (eje X)", continuas, key="col_x")
-    col_y = st.selectbox("Variable continua (eje Y)", [c for c in continuas if c != col_x], key="col_y")
+    col_y_options = [c for c in continuas if c != col_x]
+    col_y = st.selectbox("Variable continua (eje Y)", col_y_options, key="col_y")
 
     min_val = float(df[col_x].min())
     max_val = float(df[col_x].max())
@@ -94,9 +97,7 @@ elif col_cat != "1st Fall Enrollment":
 if col_proc != "Todas":
     df_filtrado = df_filtrado[df_filtrado["Procedencia"].astype(str) == col_proc]
 
-df_filtrado = df_filtrado[
-    (df_filtrado[col_x] >= selected_range[0]) & (df_filtrado[col_x] <= selected_range[1])
-]
+df_filtrado = df_filtrado[(df_filtrado[col_x] >= selected_range[0]) & (df_filtrado[col_x] <= selected_range[1])]
 
 # === MÉTRICAS ===
 st.markdown("## 📊 Dashboard Estudiantil")
@@ -119,8 +120,8 @@ bars.update_layout(title=f"Distribución de {col_cat}", xaxis_title=col_cat, yax
 
 # === MATRIZ DE CORRELACIÓN ===
 columnas_cor = notas_cursos + continuas
-datos_cor = df_filtrado[columnas_cor].copy()
-matriz = datos_cor.corr()
+corr_df = df_filtrado[columnas_cor].replace({pd.NA: np.nan})
+matriz = corr_df.corr()
 
 heatmap = go.Figure(data=go.Heatmap(
     z=matriz.values,
@@ -135,12 +136,12 @@ heatmap.update_layout(
     title="Correlación entre notas y métricas",
     xaxis=dict(tickangle=45, tickfont=dict(size=10), automargin=True),
     yaxis=dict(tickfont=dict(size=10), automargin=True),
-    width=1200,
-    height=1000,
-    margin=dict(t=80, l=200, r=50, b=200)
+    width=1100,
+    height=900,
+    margin=dict(t=60, l=200, r=50, b=200)
 )
 
-# === SCATTER CON REGRESIÓN ===
+# === SCATTER + REGRESIÓN ===
 x_vals = df_filtrado[col_x].dropna().values.reshape(-1, 1)
 y_vals = df_filtrado[col_y].dropna().values.reshape(-1, 1)
 valid_idx = (~np.isnan(x_vals.flatten())) & (~np.isnan(y_vals.flatten()))
@@ -169,6 +170,8 @@ g3, g4 = st.columns(2)
 g3.plotly_chart(scatter, use_container_width=True)
 g4.plotly_chart(heatmap, use_container_width=True)
 
-# === TABLA FINAL ===
+# === TABLA DE DATOS ===
 st.markdown("### 🧾 Tabla de datos filtrados")
-st.dataframe(df_filtrado.drop(columns=["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"], errors="ignore"))
+columnas_excluir = ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"]
+columnas_mostrar = [col for col in df_filtrado.columns if col not in columnas_excluir]
+st.dataframe(df_filtrado[columnas_mostrar])
