@@ -113,19 +113,28 @@ bars = go.Figure()
 bars.add_trace(go.Bar(x=valores_barras.index, y=valores_barras.values, marker_color="#2c3e50"))
 bars.update_layout(title=f"Distribución de {col_cat}", xaxis_title=col_cat, yaxis_title="Cantidad", xaxis_type='category')
 
-# === HEATMAP ===
-columnas_cor = notas_cursos + continuas
-datos_cor = df_filtrado[columnas_cor].replace({pd.NA: np.nan})
+# === MATRIZ DE CORRELACIÓN (sin eliminar NaNs para que muestre todo) ===
+columnas_cor = notas_letra + continuas  # Asegúrate de incluir todas las columnas necesarias
+datos_cor = corr_df[columnas_cor].replace({pd.NA: np.nan})
 matriz = datos_cor.corr()
+
 heatmap = go.Figure(data=go.Heatmap(
     z=matriz.values,
     x=matriz.columns,
     y=matriz.index,
     colorscale="Blues",
     zmin=-1,
-    zmax=1
+    zmax=1,
+    colorbar=dict(title="Correlación")
 ))
-heatmap.update_layout(title="Correlación entre notas y métricas")
+heatmap.update_layout(
+    title="Correlación entre notas y métricas",
+    xaxis=dict(tickangle=45, tickfont=dict(size=10), automargin=True),
+    yaxis=dict(tickfont=dict(size=10), automargin=True),
+    width=1200,
+    height=1000,
+    margin=dict(t=80, l=200, r=50, b=200)
+)
 
 # === SCATTER + REGRESIÓN ===
 x_vals = df_filtrado[col_x].dropna().values.reshape(-1, 1)
