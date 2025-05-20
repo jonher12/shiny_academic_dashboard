@@ -7,10 +7,9 @@ from io import BytesIO
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 
-# === CONFIGURACIÓN DE PÁGINA ===
+# === CONFIGURACIÓN ===
 st.set_page_config(page_title="Dashboard Estudiantil", layout="wide")
 
-# === FUNCIÓN PARA CARGAR DATOS ===
 @st.cache_data
 def load_data_from_gdrive(file_id: str) -> pd.DataFrame:
     url = f"https://drive.google.com/uc?id={file_id}&export=download"
@@ -21,15 +20,14 @@ def load_data_from_gdrive(file_id: str) -> pd.DataFrame:
         st.error(f"Error al descargar archivo: {response.status_code}")
         return pd.DataFrame()
 
-# === CARGAR DATOS ===
 FILE_ID = st.secrets["FILE_ID"]
 df = load_data_from_gdrive(FILE_ID)
 
 # === VARIABLES ===
-demograficas = [
-    "Nombre", "Numero de Estudiante", "Email UPR", "Procedencia", 
-    "Número de Expediente", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"
-]
+demograficas_validas = ["Procedencia", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"]
+continuas = ["Índice General", "Índice Científico", "PCAT"]
+categoricas = [col for col in df.columns if col not in demograficas_validas + continuas + ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"]]
+
 notas_cursos = [
     "Español Básico Nota 1", "Español Básico Nota 2", "Inglés Básico Nota 1", "Inglés Básico Nota 2",
     "Ciencias Sociales Nota 1", "Ciencias Sociales Nota 2", 
@@ -44,12 +42,7 @@ notas_cursos = [
     "Lab. Física General Nota 1", "Lab. Física General Nota 2",
     "An. y Fisiología Nota 1", "An. y Fisiología Nota 2", "An. y Fisiología Nota 3", "An. y Fisiología Nota 4"
 ]
-continuas = ["Índice General", "Índice Científico", "PCAT"]
-# Eliminar columnas no deseadas de los filtros categóricos
-excluir_de_categoricas = ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"]
-categoricas = [col for col in df.columns if col not in continuas + excluir_de_categoricas]
 
-# Mapping de letras
 nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
 df[notas_cursos] = df[notas_cursos].apply(lambda col: col.map(lambda x: nota_map.get(str(x).strip().upper(), np.nan)))
 
@@ -57,7 +50,7 @@ df[notas_cursos] = df[notas_cursos].apply(lambda col: col.map(lambda x: nota_map
 with st.sidebar:
     st.header("🎛️ Filtros")
 
-    col_cat = st.selectbox("Filtrar por categoría", categoricas, index=categoricas.index("1st Fall Enrollment"))
+    col_cat = st.selectbox("Filtrar por categoría", categoricas, index=categoricas.index("Ciencias Sociales Nota 1") if "Ciencias Sociales Nota 1" in categoricas else 0)
     valores_cat = sorted(df[col_cat].dropna().astype(str).unique())
     if col_cat == "1st Fall Enrollment":
         valores_cat = ["All Enrollment"] + valores_cat
@@ -81,9 +74,6 @@ with st.sidebar:
             step=slider_step,
             key="slider"
         )
-
-        if st.button("🔄 Reset filtros"):
-            st.rerun()
 
 # === FILTRADO ===
 df_filtrado = df.copy()
@@ -120,7 +110,7 @@ bars.update_layout(title=f"Distribución de {col_cat}", xaxis_title=col_cat, yax
 
 # === MATRIZ DE CORRELACIÓN ===
 columnas_cor = notas_cursos + continuas
-datos_cor = df_filtrado[columnas_cor].replace({pd.NA: np.nan})
+datos_cor = df_filtrado[columnas_cor]
 matriz = datos_cor.corr()
 
 heatmap = go.Figure(data=go.Heatmap(
@@ -141,7 +131,7 @@ heatmap.update_layout(
     margin=dict(t=80, l=200, r=50, b=200)
 )
 
-# === SCATTER + REGRESIÓN ===
+# === REGRESIÓN LINEAL ===
 x_vals = df_filtrado[col_x].dropna().values.reshape(-1, 1)
 y_vals = df_filtrado[col_y].dropna().values.reshape(-1, 1)
 valid_idx = (~np.isnan(x_vals.flatten())) & (~np.isnan(y_vals.flatten()))
@@ -170,6 +160,6 @@ g3, g4 = st.columns(2)
 g3.plotly_chart(scatter, use_container_width=True)
 g4.plotly_chart(heatmap, use_container_width=True)
 
-# === TABLA FINAL ===
+# === TABLA ===
 st.markdown("### 🧾 Tabla de datos filtrados")
 st.dataframe(df_filtrado)
