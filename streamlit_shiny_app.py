@@ -1,5 +1,4 @@
 import streamlit as st
-import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
@@ -11,6 +10,20 @@ from sklearn.metrics import r2_score
 # === CONFIGURACIÓN DE PÁGINA ===
 st.set_page_config(page_title="Dashboard Estudiantil", layout="wide")
 
+# === FUNCIÓN: bloquear interacciones en gráficos ===
+def configurar_plot_movil(fig, titulo, x_title, y_title):
+    fig.update_layout(
+        title=titulo,
+        xaxis_title=x_title,
+        yaxis_title=y_title,
+        dragmode=False,
+        hovermode="closest",
+        xaxis=dict(fixedrange=True),
+        yaxis=dict(fixedrange=True),
+        uirevision=True
+    )
+    return fig
+
 # === CARGAR DATOS ===
 @st.cache_data
 def load_data_from_gdrive(file_id: str) -> pd.DataFrame:
@@ -21,16 +34,13 @@ def load_data_from_gdrive(file_id: str) -> pd.DataFrame:
 FILE_ID = st.secrets["FILE_ID"]
 df = load_data_from_gdrive(FILE_ID)
 
-# === DEFINICIONES DE VARIABLES ===
-demograficas = [
-    "Procedencia", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"
-]
+# === VARIABLES ===
+demograficas = ["Procedencia", "1st Fall Enrollment", "Índice General", "Índice Científico", "PCAT"]
 excluir_cat = ["Nombre", "Numero de Estudiante", "Email UPR", "Número de Expediente"]
 notas_cursos = [col for col in df.columns if "Nota" in col or "(D)" in col or "(F)" in col or "(W)" in col]
 continuas = ["Índice General", "Índice Científico", "PCAT"]
 categoricas = [col for col in df.select_dtypes(include=["object", "category"]).columns if col not in excluir_cat and col not in continuas]
 nota_map = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
-
 df[notas_cursos] = df[notas_cursos].apply(lambda col: col.map(lambda x: nota_map.get(str(x).strip().upper(), np.nan)))
 
 # === VALORES POR DEFECTO ===
@@ -43,7 +53,7 @@ default_y = "Índice Científico"
 # === SIDEBAR: CONTROLES ===
 with st.sidebar:
     st.header("📊 Filtros")
-    
+
     if st.button("🔄 Resetear filtros"):
         st.session_state.clear()
 
@@ -61,7 +71,14 @@ with st.sidebar:
     slider_min = float(df[col_x].min())
     slider_max = float(df[col_x].max())
     slider_step = 1.0 if col_x == "PCAT" else 0.1
-    selected_range = st.slider(f"Rango de '{col_x}'", min_value=slider_min, max_value=slider_max, value=(slider_min, slider_max), step=slider_step, key="slider")
+    selected_range = st.slider(
+        f"Rango de '{col_x}'", 
+        min_value=slider_min, 
+        max_value=slider_max, 
+        value=(slider_min, slider_max), 
+        step=slider_step, 
+        key="slider"
+    )
 
 # === FILTRADO ===
 df_filtrado = df.copy()
@@ -81,22 +98,21 @@ col2.metric("Promedio General", f"{df_filtrado['Índice General'].mean():.2f}")
 col3.metric("Promedio Científico", f"{df_filtrado['Índice Científico'].mean():.2f}")
 col4.metric("Promedio PCAT", f"{df_filtrado['PCAT'].mean():.2f}")
 
-# === GRÁFICO: HISTOGRAMA ===
+# === HISTOGRAMA ===
 hist = go.Figure()
 hist.add_trace(go.Histogram(x=df_filtrado[col_x], nbinsx=10, marker_color="#1f77b4"))
-hist.update_layout(title=f"Distribución de {col_x}", xaxis_title=col_x, yaxis_title="Frecuencia")
+hist = configurar_plot_movil(hist, f"Distribución de {col_x}", col_x, "Frecuencia")
 
-# === GRÁFICO: BARRAS CATEGÓRICAS ===
+# === BARRAS ===
 valores_barras = df_filtrado[col_cat].dropna().astype(str).value_counts().sort_index()
 bars = go.Figure()
 bars.add_trace(go.Bar(x=valores_barras.index, y=valores_barras.values, marker_color="#2c3e50"))
-bars.update_layout(title=f"Distribución de {col_cat}", xaxis_title=col_cat, yaxis_title="Cantidad", xaxis_type='category')
+bars = configurar_plot_movil(bars, f"Distribución de {col_cat}", col_cat, "Cantidad")
 
-# === MATRIZ DE CORRELACIÓN ===
+# === HEATMAP ===
 columnas_cor = notas_cursos + continuas
 datos_cor = df_filtrado[columnas_cor].copy()
 matriz = datos_cor.corr()
-
 heatmap = go.Figure(data=go.Heatmap(
     z=matriz.values,
     x=matriz.columns,
@@ -106,14 +122,7 @@ heatmap = go.Figure(data=go.Heatmap(
     zmax=1,
     colorbar=dict(title="Correlación")
 ))
-heatmap.update_layout(
-    title="Correlación entre notas y métricas",
-    xaxis=dict(tickangle=45, tickfont=dict(size=10), automargin=True),
-    yaxis=dict(tickfont=dict(size=10), automargin=True),
-    width=1200,
-    height=1000,
-    margin=dict(t=80, l=200, r=50, b=200)
-)
+heatmap = configurar_plot_movil(heatmap, "Correlación entre notas y métricas", "", "")
 
 # === SCATTER + REGRESIÓN ===
 x_vals = df_filtrado[col_x].dropna().values.reshape(-1, 1)
@@ -133,9 +142,9 @@ equation = f"y = {slope:.2f}x + {intercept:.2f}<br>R² = {r2:.3f}"
 scatter = go.Figure()
 scatter.add_trace(go.Scatter(x=x_clean.flatten(), y=y_clean.flatten(), mode='markers', name='Datos'))
 scatter.add_trace(go.Scatter(x=x_clean.flatten(), y=y_pred.flatten(), mode='lines', name='Regresión', line=dict(color='orange')))
-scatter.update_layout(title=f"{col_x} vs {col_y} con regresión<br><sub>{equation}</sub>", xaxis_title=col_x, yaxis_title=col_y)
+scatter = configurar_plot_movil(scatter, f"{col_x} vs {col_y} con regresión<br><sub>{equation}</sub>", col_x, col_y)
 
-# === VISUALIZACIÓN DE PLOTS ===
+# === VISUALIZACIÓN ===
 g1, g2 = st.columns(2)
 g1.plotly_chart(hist, use_container_width=True)
 g2.plotly_chart(bars, use_container_width=True)
@@ -143,6 +152,3 @@ g2.plotly_chart(bars, use_container_width=True)
 g3, g4 = st.columns(2)
 g3.plotly_chart(scatter, use_container_width=True)
 g4.plotly_chart(heatmap, use_container_width=True)
-
-# === SECCIÓN DE TABLA DE DATOS — ELIMINADA ===
-# (Removida según solicitud)
