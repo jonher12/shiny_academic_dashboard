@@ -144,6 +144,5 @@ g3, g4 = st.columns(2)
 g3.plotly_chart(scatter, use_container_width=True)
 g4.plotly_chart(heatmap, use_container_width=True)
 
-# === TABLA ===
-st.markdown("### 🧾 Tabla de datos filtrados")
-st.dataframe(df_filtrado.drop(columns=excluir_cat, errors='ignore'))
+# === SECCIÓN DE TABLA DE DATOS — ELIMINADA ===
+# (Removida según solicitud)
